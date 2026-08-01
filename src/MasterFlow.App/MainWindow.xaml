@@ -502,9 +502,116 @@
                     <StackPanel x:Name="ConversationsPanel" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource SectionTitle}" Text="Анализ переписки" />
                         <TextBlock Style="{StaticResource SectionDescription}"
-                                   Text="Здесь можно будет загрузить текст или скриншоты переписки и получить рекомендации по ответам и объявлению." />
-                        <TextBlock Text="До реализации мы определим правила безопасной обработки и удаления персональных данных."
-                                   TextWrapping="Wrap" />
+                                   Text="Вставьте переписку или откройте текстовый файл. Анализ выполняется на этом компьютере. Текст не сохраняется и не отправляется в интернет." />
+
+                        <Border Padding="12"
+                                Margin="0,0,0,16"
+                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold"
+                                           Text="Перед анализом"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,8"
+                                           Text="Удалите лишние имена, телефоны, адреса и медицинские сведения. Используйте переписку только с законным основанием. После анализа нажмите «Очистить переписку»."
+                                           TextWrapping="Wrap" />
+                                <CheckBox x:Name="ConversationConsentCheckBox"
+                                          Content="Я проверил текст и согласен обработать его локально"
+                                          AutomationProperties.Name="Согласие на локальный анализ переписки"
+                                          AutomationProperties.HelpText="Без этой отметки анализ не начнётся." />
+                            </StackPanel>
+                        </Border>
+
+                        <Label Target="{Binding ElementName=ConversationTextBox}" Content="Текст переписки" />
+                        <TextBox x:Name="ConversationTextBox"
+                                 MinHeight="220"
+                                 MaxHeight="420"
+                                 AcceptsReturn="True"
+                                 AcceptsTab="False"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Текст переписки для анализа"
+                                 AutomationProperties.HelpText="Для точной проверки начинайте строки словами Клиент, двоеточие, или Мастер, двоеточие." />
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button Content="Открыть текстовый файл"
+                                    AutomationProperties.Name="Открыть текстовый файл с перепиской"
+                                    AutomationProperties.HelpText="Поддерживаются файлы TXT размером до двух мегабайт."
+                                    Click="OpenConversationTextFile_Click" />
+                            <Button Content="Распознать скриншоты"
+                                    AutomationProperties.Name="Выбрать скриншоты переписки и распознать текст"
+                                    AutomationProperties.HelpText="Поддерживаются до десяти изображений PNG, JPEG, BMP или TIFF. Распознавание выполняется средствами Windows на этом компьютере."
+                                    Click="RecognizeConversationScreenshots_Click" />
+                            <Button Content="Проанализировать переписку"
+                                    AutomationProperties.Name="Проанализировать текст переписки локально"
+                                    Click="AnalyzeConversation_Click" />
+                            <Button Content="Очистить переписку"
+                                    AutomationProperties.Name="Удалить текст переписки из программы"
+                                    AutomationProperties.HelpText="Очищает исходный текст и все результаты анализа."
+                                    Click="ClearConversation_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="ScreenshotImportStatusText"
+                                   Margin="0,0,0,8"
+                                   Text="Скриншоты ещё не выбраны."
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <StackPanel x:Name="ConversationAnalysisPanel"
+                                    Margin="0,20,0,0"
+                                    Visibility="Collapsed">
+                            <Separator Margin="0,0,0,20" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Рекомендации" />
+                            <TextBlock x:Name="ConversationAnalysisSummaryText"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                       AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="ConversationPrivacyText"
+                                       Margin="0,0,0,16"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}" />
+
+                            <Label Target="{Binding ElementName=CommunicationRecommendationsList}"
+                                   Content="Как улучшить ответы клиенту"
+                                   FontWeight="SemiBold" />
+                            <ListBox x:Name="CommunicationRecommendationsList"
+                                     MaxHeight="280"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="Рекомендации по общению с клиентом">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessibleSummary}" Margin="4" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+
+                            <Label Target="{Binding ElementName=AdvertisementRecommendationsList}"
+                                   Content="Что уточнить в объявлении"
+                                   FontWeight="SemiBold" />
+                            <ListBox x:Name="AdvertisementRecommendationsList"
+                                     MaxHeight="280"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="Рекомендации по объявлению">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessibleSummary}" Margin="4" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

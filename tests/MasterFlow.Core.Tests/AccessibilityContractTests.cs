@@ -200,6 +200,38 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_ConversationAnalysisHasConsentClearActionAndAccessibleResults()
+    {
+        var document = LoadMainWindow();
+        var consent = document.Descendants(Presentation + "CheckBox")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ConversationConsentCheckBox");
+        var summary = document.Descendants(Presentation + "TextBlock")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ConversationAnalysisSummaryText");
+        string[] actions =
+        [
+            "Открыть текстовый файл с перепиской",
+            "Выбрать скриншоты переписки и распознать текст",
+            "Проанализировать текст переписки локально",
+            "Удалить текст переписки из программы"
+        ];
+
+        Assert.Equal("Согласие на локальный анализ переписки", consent.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("Polite", summary.Attribute("AutomationProperties.LiveSetting")?.Value);
+        Assert.All(actions, action => Assert.Contains(
+            document.Descendants(Presentation + "Button"),
+            button => button.Attribute("AutomationProperties.Name")?.Value == action));
+
+        var source = File.ReadAllText(Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "WindowsOcrService.cs"));
+        Assert.Contains("Windows.Media.Ocr", source);
+        Assert.Contains("RecognizeAsync", source);
+        Assert.DoesNotContain("HttpClient", source);
+    }
+
+    [Fact]
     public void MainWindow_ProtectsWorkspaceForCurrentWindowsUser()
     {
         var source = File.ReadAllText(Path.Combine(
