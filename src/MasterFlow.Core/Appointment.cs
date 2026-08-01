@@ -42,10 +42,42 @@ public sealed record Appointment(
             throw new ArgumentException("Напоминание должно быть позже текущего времени и раньше сеанса.", nameof(reminderBefore));
         }
 
-        return new Appointment(
+        return Restore(
             Guid.NewGuid(),
             client.Id,
             client.Name,
+            serviceName.Trim(),
+            startsAt,
+            reminderBefore);
+    }
+
+    internal static Appointment Restore(
+        Guid id,
+        Guid clientId,
+        string clientName,
+        string serviceName,
+        DateTime startsAt,
+        TimeSpan reminderBefore)
+    {
+        if (id == Guid.Empty || clientId == Guid.Empty)
+        {
+            throw new ArgumentException("Не удалось восстановить идентификатор записи.");
+        }
+
+        if (string.IsNullOrWhiteSpace(clientName) || string.IsNullOrWhiteSpace(serviceName))
+        {
+            throw new ArgumentException("В сохранённой записи не хватает имени клиента или услуги.");
+        }
+
+        if (reminderBefore < TimeSpan.Zero)
+        {
+            throw new ArgumentException("Время напоминания не может быть отрицательным.", nameof(reminderBefore));
+        }
+
+        return new Appointment(
+            id,
+            clientId,
+            clientName.Trim(),
             serviceName.Trim(),
             startsAt,
             reminderBefore);

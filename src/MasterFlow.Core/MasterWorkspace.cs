@@ -23,6 +23,64 @@ public sealed class MasterWorkspace
         return client;
     }
 
+    public ClientRecord UpdateClient(Guid clientId, string name, string contact, string source, string notes)
+    {
+        var index = _clients.FindIndex(client => client.Id == clientId);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("Клиент не найден.");
+        }
+
+        var normalizedContact = contact.Trim();
+        if (_clients.Any(client =>
+                client.Id != clientId &&
+                string.Equals(client.Contact, normalizedContact, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Клиент с таким контактом уже существует.");
+        }
+
+        var updated = _clients[index].Update(name, contact, source, notes);
+        _clients[index] = updated;
+        for (var appointmentIndex = 0; appointmentIndex < _appointments.Count; appointmentIndex++)
+        {
+            var appointment = _appointments[appointmentIndex];
+            if (appointment.ClientId == clientId)
+            {
+                _appointments[appointmentIndex] = appointment with { ClientName = updated.Name };
+            }
+        }
+
+        return updated;
+    }
+
+    public bool DeleteClient(Guid clientId)
+    {
+        var removed = _clients.RemoveAll(client => client.Id == clientId) > 0;
+        if (removed)
+        {
+            _appointments.RemoveAll(appointment => appointment.ClientId == clientId);
+        }
+
+        return removed;
+    }
+
+    public IReadOnlyList<ClientRecord> SearchClients(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return _clients.OrderBy(client => client.Name).ToList();
+        }
+
+        var value = query.Trim();
+        return _clients
+            .Where(client =>
+                client.Name.Contains(value, StringComparison.CurrentCultureIgnoreCase) ||
+                client.Contact.Contains(value, StringComparison.CurrentCultureIgnoreCase) ||
+                client.Notes.Contains(value, StringComparison.CurrentCultureIgnoreCase))
+            .OrderBy(client => client.Name)
+            .ToList();
+    }
+
     public Appointment AddAppointment(
         ClientRecord client,
         string serviceName,
@@ -42,4 +100,58 @@ public sealed class MasterWorkspace
 
     public IReadOnlyList<Appointment> GetUpcoming(DateTime now) =>
         _appointments.Where(item => item.StartsAt > now).OrderBy(item => item.StartsAt).ToList();
+
+    public IReadOnlyList<Appointment> GetClientAppointments(Guid clientId) =>
+        _appointments
+            .Where(item => item.ClientId == clientId)
+            .OrderByDescending(item => item.StartsAt)
+            .ToList();
+
+    public WorkspaceSnapshot CreateSnapshot() =>
+        new(WorkspaceSnapshot.CurrentVersion, _clients.ToArray(), _appointments.ToArray());
+
+    public static MasterWorkspace Restore(WorkspaceSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Version != WorkspaceSnapshot.CurrentVersion)
+        {
+            throw new InvalidDataException("Версия сохранённых данных не поддерживается.");
+        }
+
+        var workspace = new MasterWorkspace();
+        foreach (var client in snapshot.Clients)
+        {
+            if (workspace._clients.Any(existing => existing.Id == client.Id))
+            {
+                throw new InvalidDataException("В сохранённых данных найден повтор клиента.");
+            }
+
+            workspace._clients.Add(ClientRecord.Restore(
+                client.Id,
+                client.Name,
+                client.Contact,
+                client.Source,
+                client.Notes));
+        }
+
+        foreach (var appointment in snapshot.Appointments)
+        {
+            var client = workspace._clients.SingleOrDefault(item => item.Id == appointment.ClientId)
+                ?? throw new InvalidDataException("Запись ссылается на отсутствующего клиента.");
+            if (workspace._appointments.Any(existing => existing.Id == appointment.Id))
+            {
+                throw new InvalidDataException("В сохранённых данных найдена повторная запись.");
+            }
+
+            workspace._appointments.Add(Appointment.Restore(
+                appointment.Id,
+                appointment.ClientId,
+                client.Name,
+                appointment.ServiceName,
+                appointment.StartsAt,
+                appointment.ReminderBefore));
+        }
+
+        return workspace;
+    }
 }

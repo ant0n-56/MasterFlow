@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,7 +12,8 @@ namespace MasterFlow.App;
 
 public partial class MainWindow : Window
 {
-    private readonly MasterWorkspace _workspace = new();
+    private MasterWorkspace _workspace = new();
+    private readonly FileWorkspaceStore _workspaceStore;
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _reviewBrowserReady;
     private bool _reviewImportInProgress;
@@ -22,16 +24,36 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        var dataFolder = ResolveDataFolder();
+        _workspaceStore = new FileWorkspaceStore(
+            Path.Combine(dataFolder, "workspace.dat"),
+            new WindowsWorkspaceProtector());
         _reviewDetectionTimer.Tick += ReviewDetectionTimer_Tick;
+    }
+
+    private static string ResolveDataFolder()
+    {
+        var testOverride = Environment.GetEnvironmentVariable("MASTERFLOW_DATA_FOLDER");
+        return string.IsNullOrWhiteSpace(testOverride)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MasterFlow",
+                "Data")
+            : Path.GetFullPath(testOverride);
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        var loadMessage = LoadWorkspace();
         AppointmentDatePicker.SelectedDate = DateTime.Today.AddDays(1);
         AppointmentTimeTextBox.Text = "10:00";
         RefreshLists();
         TodayNavigationItem.IsSelected = true;
         TodayNavigationItem.Focus();
+        if (!string.IsNullOrEmpty(loadMessage))
+        {
+            Announce(loadMessage);
+        }
         await InitializeReviewBrowserAsync();
     }
 
@@ -64,6 +86,7 @@ public partial class MainWindow : Window
 
     private void SaveAppointment_Click(object sender, RoutedEventArgs e)
     {
+        WorkspaceSnapshot? snapshotBeforeChange = null;
         try
         {
             if (!AppointmentDatePicker.SelectedDate.HasValue)
@@ -89,6 +112,7 @@ public partial class MainWindow : Window
                 return;
             }
 
+            snapshotBeforeChange = _workspace.CreateSnapshot();
             var client = _workspace.AddClient(
                 ClientNameTextBox.Text,
                 ClientContactTextBox.Text,
@@ -102,6 +126,11 @@ public partial class MainWindow : Window
                 startsAt,
                 TimeSpan.FromMinutes(reminderMinutes),
                 DateTime.Now);
+
+            if (!SaveWorkspace(snapshotBeforeChange))
+            {
+                return;
+            }
 
             RefreshLists();
             ClearForm();
@@ -125,6 +154,118 @@ public partial class MainWindow : Window
         ClearForm();
         ClientNameTextBox.Focus();
         Announce("Форма очищена.");
+    }
+
+    private void ClientSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        RefreshClientList();
+    }
+
+    private void ClientsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ClientsList.SelectedItem is not ClientRecord client)
+        {
+            ClientCardGroupBox.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ClientCardNameTextBox.Text = client.Name;
+        ClientCardContactTextBox.Text = client.Contact;
+        ClientCardSourceTextBox.Text = client.Source;
+        ClientCardNotesTextBox.Text = client.Notes;
+        var history = _workspace.GetClientAppointments(client.Id);
+        ClientHistoryList.ItemsSource = history;
+        EmptyClientHistoryText.Visibility = history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ClientCardGroupBox.Visibility = Visibility.Visible;
+    }
+
+    private void SaveClientChanges_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientsList.SelectedItem is not ClientRecord selected)
+        {
+            Announce("Выберите клиента.");
+            return;
+        }
+
+        var snapshotBeforeChange = _workspace.CreateSnapshot();
+        try
+        {
+            var updated = _workspace.UpdateClient(
+                selected.Id,
+                ClientCardNameTextBox.Text,
+                ClientCardContactTextBox.Text,
+                ClientCardSourceTextBox.Text,
+                ClientCardNotesTextBox.Text);
+            if (!SaveWorkspace(snapshotBeforeChange))
+            {
+                return;
+            }
+
+            RefreshLists(updated.Id);
+            Announce($"Карточка клиента «{updated.Name}» сохранена.");
+        }
+        catch (ArgumentException error)
+        {
+            RestoreWorkspaceAfterFailedChange(snapshotBeforeChange);
+            Announce(error.Message.Split(" (Parameter", StringSplitOptions.None)[0]);
+        }
+        catch (InvalidOperationException error)
+        {
+            RestoreWorkspaceAfterFailedChange(snapshotBeforeChange);
+            Announce(error.Message);
+        }
+    }
+
+    private void CreateAppointmentForSelectedClient_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientsList.SelectedItem is not ClientRecord client)
+        {
+            Announce("Выберите клиента.");
+            return;
+        }
+
+        ClientNameTextBox.Text = client.Name;
+        ClientContactTextBox.Text = client.Contact;
+        ClientNotesTextBox.Text = client.Notes;
+        SelectNavigationItem("Schedule");
+        ServiceNameTextBox.Focus();
+        Announce($"Создаём следующую запись для клиента «{client.Name}». Укажите услугу, дату и время.");
+    }
+
+    private void DeleteSelectedClient_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientsList.SelectedItem is not ClientRecord client)
+        {
+            Announce("Выберите клиента.");
+            return;
+        }
+
+        var appointmentCount = _workspace.GetClientAppointments(client.Id).Count;
+        var confirmation = new ConfirmDeleteDialog(client.Name, appointmentCount)
+        {
+            Owner = this
+        };
+        if (confirmation.ShowDialog() != true)
+        {
+            Announce("Удаление отменено.");
+            return;
+        }
+
+        var snapshotBeforeChange = _workspace.CreateSnapshot();
+        _workspace.DeleteClient(client.Id);
+        if (!SaveWorkspace(snapshotBeforeChange))
+        {
+            return;
+        }
+
+        RefreshLists();
+        ClientSearchTextBox.Focus();
+        Announce($"Клиент «{client.Name}» и его записи удалены.");
     }
 
     private async void OpenAvito_Click(object sender, RoutedEventArgs e)
@@ -362,13 +503,79 @@ public partial class MainWindow : Window
         ReminderComboBox.SelectedIndex = 2;
     }
 
-    private void RefreshLists()
+    private string? LoadWorkspace()
+    {
+        try
+        {
+            var result = _workspaceStore.Load();
+            _workspace = result.Workspace;
+            return result.RecoveredFromBackup
+                ? "Основной файл данных был повреждён. Клиенты и записи восстановлены из резервной копии."
+                : _workspace.Clients.Count > 0
+                    ? $"Локальные данные загружены. Клиентов: {_workspace.Clients.Count}."
+                    : null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            _workspace = new MasterWorkspace();
+            return "Не удалось открыть сохранённые данные. Программа начала с пустой базы и не изменяла повреждённый файл.";
+        }
+    }
+
+    private bool SaveWorkspace(WorkspaceSnapshot snapshotBeforeChange)
+    {
+        try
+        {
+            _workspaceStore.Save(_workspace);
+            return true;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or CryptographicException or JsonException)
+        {
+            _workspace = MasterWorkspace.Restore(snapshotBeforeChange);
+            RefreshLists();
+            Announce("Не удалось сохранить данные на компьютере. Изменение отменено. Проверьте доступное место и права на папку.");
+            return false;
+        }
+    }
+
+    private void RestoreWorkspaceAfterFailedChange(WorkspaceSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        _workspace = MasterWorkspace.Restore(snapshot);
+        RefreshLists();
+    }
+
+    private void RefreshLists(Guid? selectedClientId = null)
     {
         var appointments = _workspace.GetUpcoming(DateTime.Now);
         UpcomingAppointmentsList.ItemsSource = appointments;
-        ClientsList.ItemsSource = _workspace.Clients;
         EmptyAppointmentsText.Visibility = appointments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyClientsText.Visibility = _workspace.Clients.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RefreshClientList(selectedClientId);
+    }
+
+    private void RefreshClientList(Guid? selectedClientId = null)
+    {
+        var previousId = selectedClientId ?? (ClientsList.SelectedItem as ClientRecord)?.Id;
+        var clients = _workspace.SearchClients(ClientSearchTextBox.Text);
+        ClientsList.ItemsSource = clients;
+        EmptyClientsText.Text = _workspace.Clients.Count == 0
+            ? "Клиентов пока нет. Клиент появится здесь после создания первой записи."
+            : "По вашему запросу клиенты не найдены.";
+        EmptyClientsText.Visibility = clients.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (previousId.HasValue)
+        {
+            ClientsList.SelectedItem = clients.FirstOrDefault(client => client.Id == previousId.Value);
+        }
+
+        if (ClientsList.SelectedItem is null)
+        {
+            ClientCardGroupBox.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void ShowSection(string section)
