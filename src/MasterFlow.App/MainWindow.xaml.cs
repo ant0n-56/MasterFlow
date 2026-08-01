@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
@@ -15,7 +16,12 @@ public partial class MainWindow : Window
 {
     private MasterWorkspace _workspace = new();
     private readonly FileWorkspaceStore _workspaceStore;
+    private readonly AiSettingsStore _aiSettingsStore;
     private readonly WindowsOcrService _ocrService = new();
+    private readonly HttpClient _openAiHttpClient = new() { Timeout = TimeSpan.FromSeconds(75) };
+    private readonly OpenAiConversationService _openAiService;
+    private readonly CancellationTokenSource _windowClosedCancellation = new();
+    private AiSettings? _aiSettings;
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _reminderTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly HashSet<Guid> _announcedDueReminders = [];
@@ -32,6 +38,10 @@ public partial class MainWindow : Window
         _workspaceStore = new FileWorkspaceStore(
             Path.Combine(dataFolder, "workspace.dat"),
             new WindowsWorkspaceProtector());
+        _aiSettingsStore = new AiSettingsStore(
+            Path.Combine(dataFolder, "ai-settings.dat"),
+            new WindowsWorkspaceProtector());
+        _openAiService = new OpenAiConversationService(_openAiHttpClient);
         _reviewDetectionTimer.Tick += ReviewDetectionTimer_Tick;
         _reminderTimer.Tick += ReminderTimer_Tick;
     }
@@ -50,6 +60,7 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var loadMessage = LoadWorkspace();
+        LoadAiSettings();
         AppointmentDatePicker.SelectedDate = DateTime.Today.AddDays(1);
         AppointmentTimeTextBox.Text = "10:00";
         RefreshLists();
@@ -67,7 +78,11 @@ public partial class MainWindow : Window
     {
         _reviewDetectionTimer.Stop();
         _reminderTimer.Stop();
+        _windowClosedCancellation.Cancel();
+        _openAiHttpClient.Dispose();
+        _windowClosedCancellation.Dispose();
         ConversationTextBox.Clear();
+        AiConversationPreviewTextBox.Clear();
     }
 
     private void NavigationTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -654,8 +669,143 @@ public partial class MainWindow : Window
         AdvertisementRecommendationsList.ItemsSource = null;
         ConversationAnalysisPanel.Visibility = Visibility.Collapsed;
         ScreenshotImportStatusText.Text = "Скриншоты ещё не выбраны.";
+        AiConversationPreviewTextBox.Clear();
+        AiConversationConsentCheckBox.IsChecked = false;
+        AiConversationResultTextBox.Clear();
+        AiPreparationStatusText.Text = "Текст для ИИ ещё не подготовлен.";
         ConversationTextBox.Focus();
         Announce("Текст переписки и результаты анализа удалены из программы.");
+    }
+
+    private void PrepareConversationForAi_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var prepared = ConversationCloudSanitizer.Prepare(ConversationTextBox.Text);
+            AiConversationPreviewTextBox.Text = prepared.Text;
+            AiConversationConsentCheckBox.IsChecked = false;
+            AiConversationResultTextBox.Clear();
+            AiPreparationStatusText.Text = prepared.Summary;
+            AiConversationPreviewTextBox.Focus();
+            Announce($"Текст для ИИ подготовлен. {prepared.Summary}");
+        }
+        catch (ArgumentException error)
+        {
+            Announce(error.Message.Split(" (Parameter", StringSplitOptions.None)[0]);
+            ConversationTextBox.Focus();
+        }
+    }
+
+    private async void AnalyzeConversationWithAi_Click(object sender, RoutedEventArgs e)
+    {
+        if (_aiSettings is null)
+        {
+            Announce("Сначала сохраните ключ OpenAI API в разделе «Настройки».");
+            SelectNavigationItem("Settings");
+            OpenAiApiKeyPasswordBox.Focus();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(AiConversationPreviewTextBox.Text))
+        {
+            Announce("Сначала подготовьте текст для ИИ.");
+            return;
+        }
+
+        var finalPreparation = ConversationCloudSanitizer.Prepare(AiConversationPreviewTextBox.Text);
+        if (finalPreparation.RedactionCount > 0)
+        {
+            AiConversationPreviewTextBox.Text = finalPreparation.Text;
+            AiConversationConsentCheckBox.IsChecked = false;
+            AiPreparationStatusText.Text = finalPreparation.Summary;
+            AiConversationPreviewTextBox.Focus();
+            Announce("В тексте найдены новые контакты. Они скрыты. Проверьте текст ещё раз и повторно подтвердите отправку.");
+            return;
+        }
+
+        if (AiConversationConsentCheckBox.IsChecked != true)
+        {
+            Announce("Проверьте точный текст и отметьте согласие на отправку в OpenAI.");
+            AiConversationConsentCheckBox.Focus();
+            return;
+        }
+
+        try
+        {
+            AnalyzeConversationWithAiButton.IsEnabled = false;
+            AiConversationResultTextBox.Text = "Получаем рекомендации. Это может занять до минуты.";
+            Announce(AiConversationResultTextBox.Text);
+            var result = await _openAiService.AnalyzeAsync(
+                finalPreparation.Text,
+                _aiSettings,
+                _windowClosedCancellation.Token);
+            AiConversationResultTextBox.Text = result;
+            AiConversationResultTextBox.Focus();
+            Announce("Рекомендации ИИ готовы.");
+        }
+        catch (OpenAiServiceException error)
+        {
+            AiConversationResultTextBox.Text = string.Empty;
+            Announce(error.Message);
+        }
+        catch (HttpRequestException)
+        {
+            AiConversationResultTextBox.Text = string.Empty;
+            Announce("Не удалось подключиться к OpenAI. Проверьте интернет и попробуйте снова.");
+        }
+        catch (TaskCanceledException) when (!_windowClosedCancellation.IsCancellationRequested)
+        {
+            AiConversationResultTextBox.Text = string.Empty;
+            Announce("OpenAI не ответил за отведённое время. Попробуйте снова.");
+        }
+        catch (TaskCanceledException) when (_windowClosedCancellation.IsCancellationRequested)
+        {
+            // Окно закрывается, поэтому результат больше не нужен.
+        }
+        finally
+        {
+            AnalyzeConversationWithAiButton.IsEnabled = true;
+        }
+    }
+
+    private void SaveOpenAiKey_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = AiSettings.Create(
+                OpenAiApiKeyPasswordBox.Password,
+                _aiSettings?.SafetyIdentifier);
+            _aiSettingsStore.Save(settings);
+            _aiSettings = settings;
+            OpenAiApiKeyPasswordBox.Clear();
+            AiSettingsStatusText.Text = "Ключ API сохранён и защищён для текущей учётной записи Windows.";
+            Announce(AiSettingsStatusText.Text);
+        }
+        catch (ArgumentException error)
+        {
+            Announce(error.Message.Split(" (Parameter", StringSplitOptions.None)[0]);
+            OpenAiApiKeyPasswordBox.Focus();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or CryptographicException)
+        {
+            Announce("Не удалось защищённо сохранить ключ. Проверьте доступное место и права на папку.");
+        }
+    }
+
+    private void DeleteOpenAiKey_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _aiSettingsStore.Delete();
+            _aiSettings = null;
+            OpenAiApiKeyPasswordBox.Clear();
+            AiSettingsStatusText.Text = "Ключ API не сохранён. Облачный анализ отключён.";
+            Announce(AiSettingsStatusText.Text);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Announce("Не удалось удалить ключ. Закройте другие копии МастерFlow и попробуйте снова.");
+        }
     }
 
     private void ShowReviewAnalysis(bool focusResults)
@@ -745,6 +895,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private void LoadAiSettings()
+    {
+        try
+        {
+            _aiSettings = _aiSettingsStore.Load();
+            AiSettingsStatusText.Text = _aiSettings is null
+                ? "Ключ API не сохранён."
+                : "Ключ API сохранён и защищён для текущей учётной записи Windows.";
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException)
+        {
+            _aiSettings = null;
+            AiSettingsStatusText.Text = "Не удалось прочитать сохранённый ключ. Удалите его и сохраните новый.";
+        }
+    }
+
     private bool SaveWorkspace(WorkspaceSnapshot snapshotBeforeChange)
     {
         try
@@ -831,6 +997,7 @@ public partial class MainWindow : Window
         SchedulePanel.Visibility = section == "Schedule" ? Visibility.Visible : Visibility.Collapsed;
         ReviewsPanel.Visibility = section == "Reviews" ? Visibility.Visible : Visibility.Collapsed;
         ConversationsPanel.Visibility = section == "Conversations" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = section == "Settings" ? Visibility.Visible : Visibility.Collapsed;
 
         var name = section switch
         {
@@ -839,6 +1006,7 @@ public partial class MainWindow : Window
             "Schedule" => "Новая запись",
             "Reviews" => "Отзывы Avito",
             "Conversations" => "Анализ переписки",
+            "Settings" => "Настройки",
             _ => "раздел программы"
         };
         Announce($"Открыт раздел «{name}».");

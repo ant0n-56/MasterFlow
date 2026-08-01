@@ -93,6 +93,7 @@
                             <TreeViewItem Header="Отзывы Avito" Tag="Reviews" />
                             <TreeViewItem Header="Анализ переписки" Tag="Conversations" />
                         </TreeViewItem>
+                        <TreeViewItem Header="Настройки" Tag="Settings" />
                     </TreeView>
                 </GroupBox>
             </Border>
@@ -612,6 +613,87 @@
                                 </ListBox.ItemContainerStyle>
                             </ListBox>
                         </StackPanel>
+
+                        <Separator Margin="0,28,0,20" />
+                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="Дополнительный анализ с ИИ" />
+                        <TextBlock Margin="0,4,0,12"
+                                   Text="Эта функция необязательна. Подготовленный текст будет отправлен в OpenAI. Сначала сохраните свой ключ API в разделе «Настройки»."
+                                   TextWrapping="Wrap" />
+                        <Button Content="Подготовить текст для ИИ"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Скрыть явные контакты и подготовить текст для ИИ"
+                                AutomationProperties.HelpText="Создаёт копию текста и заменяет телефоны, email и ссылки. Исходная переписка не меняется."
+                                Click="PrepareConversationForAi_Click" />
+                        <TextBlock x:Name="AiPreparationStatusText"
+                                   Margin="0,4,0,8"
+                                   Text="Текст для ИИ ещё не подготовлен."
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Label Target="{Binding ElementName=AiConversationPreviewTextBox}"
+                               Content="Точный текст, который будет отправлен в OpenAI" />
+                        <TextBox x:Name="AiConversationPreviewTextBox"
+                                 MinHeight="160"
+                                 MaxHeight="320"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Текст для отправки в OpenAI"
+                                 AutomationProperties.HelpText="Проверьте и удалите имена, адреса, медицинские и другие лишние сведения." />
+                        <CheckBox x:Name="AiConversationConsentCheckBox"
+                                  Margin="0,0,0,8"
+                                  Content="Я проверил текст выше и согласен отправить его в OpenAI"
+                                  AutomationProperties.Name="Согласие на отправку подготовленной переписки в OpenAI" />
+                        <Button x:Name="AnalyzeConversationWithAiButton"
+                                Content="Получить рекомендации ИИ"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Отправить подготовленный текст в OpenAI и получить рекомендации"
+                                Click="AnalyzeConversationWithAi_Click" />
+                        <Label Target="{Binding ElementName=AiConversationResultTextBox}"
+                               Content="Ответ ИИ" />
+                        <TextBox x:Name="AiConversationResultTextBox"
+                                 MinHeight="180"
+                                 MaxHeight="400"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Рекомендации ИИ по переписке"
+                                 AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Настройки" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="Локальные функции работают без ключа. Ключ OpenAI нужен только для необязательного дополнительного анализа и хранится защищённо для вашей учётной записи Windows." />
+                        <TextBlock FontWeight="SemiBold" Text="Модель ИИ: GPT-5.6 Terra" />
+                        <TextBlock Margin="0,4,0,16"
+                                   Text="Выбрана модель с балансом качества и стоимости. Каждый запрос может расходовать средства вашего аккаунта OpenAI."
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="AiSettingsStatusText"
+                                   Margin="0,0,0,12"
+                                   Text="Ключ API не сохранён."
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Label Target="{Binding ElementName=OpenAiApiKeyPasswordBox}" Content="Ключ OpenAI API" />
+                        <PasswordBox x:Name="OpenAiApiKeyPasswordBox"
+                                     MinHeight="40"
+                                     Padding="8"
+                                     Margin="0,4,0,12"
+                                     AutomationProperties.Name="Ключ OpenAI API"
+                                     AutomationProperties.HelpText="Вставьте ключ. После сохранения поле очистится, а ключ будет защищён средствами Windows." />
+                        <WrapPanel>
+                            <Button Content="Сохранить ключ API"
+                                    AutomationProperties.Name="Сохранить ключ OpenAI API защищённо"
+                                    Click="SaveOpenAiKey_Click" />
+                            <Button Content="Удалить ключ API"
+                                    AutomationProperties.Name="Удалить сохранённый ключ OpenAI API"
+                                    Click="DeleteOpenAiKey_Click" />
+                        </WrapPanel>
+                        <TextBlock Margin="0,16,0,0"
+                                   Text="МастерFlow не показывает сохранённый ключ и не добавляет его в журналы. Удаление ключа отключает только облачный анализ; остальные функции продолжают работать."
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
             </ScrollViewer>
