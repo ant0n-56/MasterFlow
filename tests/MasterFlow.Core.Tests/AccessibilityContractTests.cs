@@ -72,7 +72,78 @@ public sealed class AccessibilityContractTests
                       setter.Attribute("Value")?.Value == "{Binding AccessibleSummary}"));
     }
 
+    [Fact]
+    public void MainWindow_AvitoBrowserHasAnAccessibleName()
+    {
+        var browser = LoadMainWindow().Descendants()
+            .Single(element => element.Name.LocalName == "WebView2");
+
+        Assert.Equal("Страница Avito для выбора отзывов", browser.Attribute("AutomationProperties.Name")?.Value);
+        Assert.False(string.IsNullOrWhiteSpace(browser.Attribute("AutomationProperties.HelpText")?.Value));
+    }
+
+    [Fact]
+    public void MainWindow_ReviewSummaryUsesLiveAnnouncements()
+    {
+        var summary = LoadMainWindow().Descendants(Presentation + "TextBlock")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ReviewImportSummaryText");
+
+        Assert.Equal("Polite", summary.Attribute("AutomationProperties.LiveSetting")?.Value);
+    }
+
+    [Fact]
+    public void MainWindow_ImportedReviewsWrapLongTextWithoutHorizontalScrolling()
+    {
+        var list = LoadMainWindow().Descendants(Presentation + "ListBox")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ImportedReviewsList");
+        var reviewText = list.Descendants(Presentation + "TextBlock").Single();
+
+        Assert.Equal("Disabled", list.Attribute("ScrollViewer.HorizontalScrollBarVisibility")?.Value);
+        Assert.Equal("Wrap", reviewText.Attribute("TextWrapping")?.Value);
+        Assert.Equal("{Binding AccessibleSummary}", reviewText.Attribute("Text")?.Value);
+    }
+
+    [Fact]
+    public void MainWindow_AutomaticallyImportsWhenReviewDialogAppears()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("MutationObserver", source);
+        Assert.Contains("DOMContentLoaded", source);
+        Assert.Contains("ReviewDetectionTimer_Tick", source);
+        Assert.Contains("ReviewDialogVisibleScript", source);
+        Assert.Contains("сначала\\s+новые", source);
+        Assert.Contains("masterflow:reviews-visible", source);
+        Assert.Contains("ImportReviewsFromOpenPageAsync(isAutomatic: true)", source);
+    }
+
+    [Fact]
+    public void MainWindow_AutomaticImportScrollsReviewsAndReadsOverallRating()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "MainWindow.xaml.cs"));
+
+        Assert.Contains("CollectReviewBlocksAsync", source);
+        Assert.Contains("ReviewResetScrollScript", source);
+        Assert.Contains("scrollable.scrollTop", source);
+        Assert.Contains("OverallRating", source);
+    }
+
     private static XDocument LoadMainWindow()
+    {
+        var directory = FindProjectRoot();
+        var path = Path.Combine(directory.FullName, "src", "MasterFlow.App", "MainWindow.xaml");
+        return XDocument.Load(path);
+    }
+
+    private static DirectoryInfo FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MasterFlow.slnx")))
@@ -81,7 +152,6 @@ public sealed class AccessibilityContractTests
         }
 
         Assert.NotNull(directory);
-        var path = Path.Combine(directory.FullName, "src", "MasterFlow.App", "MainWindow.xaml");
-        return XDocument.Load(path);
+        return directory;
     }
 }
