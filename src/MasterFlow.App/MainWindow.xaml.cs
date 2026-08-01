@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly FileWorkspaceStore _workspaceStore;
     private readonly AiSettingsStore _aiSettingsStore;
     private readonly AvitoApiSettingsStore _avitoApiSettingsStore;
+    private readonly DisplaySettingsStore _displaySettingsStore;
     private readonly WindowsOcrService _ocrService = new();
     private readonly HttpClient _openAiHttpClient = new() { Timeout = TimeSpan.FromSeconds(75) };
     private readonly HttpClient _avitoApiHttpClient = new() { Timeout = TimeSpan.FromSeconds(45) };
@@ -26,6 +27,8 @@ public partial class MainWindow : Window
     private readonly CancellationTokenSource _windowClosedCancellation = new();
     private AiSettings? _aiSettings;
     private AvitoApiSettings? _avitoApiSettings;
+    private DisplaySettings _displaySettings = DisplaySettings.Default;
+    private bool _isLoadingDisplaySettings;
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _reminderTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly HashSet<Guid> _announcedDueReminders = [];
@@ -48,6 +51,9 @@ public partial class MainWindow : Window
         _avitoApiSettingsStore = new AvitoApiSettingsStore(
             Path.Combine(dataFolder, "avito-api-settings.dat"),
             new WindowsWorkspaceProtector());
+        _displaySettingsStore = new DisplaySettingsStore(
+            Path.Combine(dataFolder, "display-settings.dat"),
+            new WindowsWorkspaceProtector());
         _openAiService = new OpenAiConversationService(_openAiHttpClient);
         _avitoRatingsService = new AvitoRatingsService(_avitoApiHttpClient);
         _reviewDetectionTimer.Tick += ReviewDetectionTimer_Tick;
@@ -68,6 +74,7 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var loadMessage = LoadWorkspace();
+        LoadDisplaySettings();
         LoadAiSettings();
         LoadAvitoApiSettings();
         AppointmentDatePicker.SelectedDate = DateTime.Today.AddDays(1);
@@ -841,6 +848,42 @@ public partial class MainWindow : Window
         }
     }
 
+    private void TextScaleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingDisplaySettings ||
+            TextScaleComboBox.SelectedItem is not ComboBoxItem item ||
+            !int.TryParse(item.Tag?.ToString(), out var percent))
+        {
+            return;
+        }
+
+        var previous = _displaySettings;
+        try
+        {
+            var settings = DisplaySettings.Create(percent);
+            _displaySettingsStore.Save(settings);
+            _displaySettings = settings;
+            ApplyTextScale(settings.TextScalePercent);
+            TextScaleStatusText.Text = $"Размер текста: {settings.TextScalePercent} %. Изменение сохранено.";
+            Announce(TextScaleStatusText.Text);
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or CryptographicException)
+        {
+            _isLoadingDisplaySettings = true;
+            try
+            {
+                SelectTextScaleItem(previous.TextScalePercent);
+                ApplyTextScale(previous.TextScalePercent);
+            }
+            finally
+            {
+                _isLoadingDisplaySettings = false;
+            }
+
+            Announce("Не удалось сохранить размер текста. Проверьте доступное место и права на папку.");
+        }
+    }
+
     private void SaveAvitoApiSettings_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1051,6 +1094,46 @@ public partial class MainWindow : Window
             _aiSettings = null;
             AiSettingsStatusText.Text = "Не удалось прочитать сохранённый ключ. Удалите его и сохраните новый.";
         }
+    }
+
+    private void LoadDisplaySettings()
+    {
+        _isLoadingDisplaySettings = true;
+        try
+        {
+            _displaySettings = _displaySettingsStore.Load();
+            SelectTextScaleItem(_displaySettings.TextScalePercent);
+            ApplyTextScale(_displaySettings.TextScalePercent);
+            TextScaleStatusText.Text = $"Размер текста: {_displaySettings.TextScalePercent} %.";
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException)
+        {
+            _displaySettings = DisplaySettings.Default;
+            SelectTextScaleItem(_displaySettings.TextScalePercent);
+            ApplyTextScale(_displaySettings.TextScalePercent);
+            TextScaleStatusText.Text = "Не удалось прочитать сохранённый размер текста. Используется 100 %.";
+        }
+        finally
+        {
+            _isLoadingDisplaySettings = false;
+        }
+    }
+
+    private void SelectTextScaleItem(int percent)
+    {
+        TextScaleComboBox.SelectedItem = TextScaleComboBox.Items
+            .OfType<ComboBoxItem>()
+            .First(item => string.Equals(item.Tag?.ToString(), percent.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
+    }
+
+    private void ApplyTextScale(int percent)
+    {
+        var factor = percent / 100d;
+        Resources["BaseFontSize"] = 16d * factor;
+        Resources["SectionTitleFontSize"] = 28d * factor;
+        Resources["HeaderFontSize"] = 30d * factor;
+        Resources["SubsectionFontSize"] = 22d * factor;
+        NavigationColumn.Width = new GridLength(270d * Math.Min(factor, 1.25d));
     }
 
     private void LoadAvitoApiSettings()

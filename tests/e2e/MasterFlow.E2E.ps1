@@ -102,6 +102,20 @@ function Set-TextById($window, $automationId, $value) {
     $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($value)
 }
 
+function Select-ComboBoxItem($window, $comboName, $itemName) {
+    $combo = Find-NamedControl $window $comboName ([System.Windows.Automation.ControlType]::ComboBox)
+    if ($null -eq $combo) { throw "Комбинированный список не найден: $comboName" }
+    $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+    Start-Sleep -Milliseconds 200
+    $item = Find-NamedElement $combo $itemName
+    if ($null -eq $item) { $item = Find-NamedElement $window $itemName }
+    if ($null -eq $item) { $item = Find-NamedElement ([System.Windows.Automation.AutomationElement]::RootElement) $itemName }
+    if ($null -eq $item) { throw "Вариант списка не найден: $itemName" }
+    $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+    Start-Sleep -Milliseconds 300
+}
+
 $first = Start-MasterFlow
 $process = $first[0]
 $window = $first[1]
@@ -116,6 +130,18 @@ try {
     }
     foreach ($name in @("Сегодня", "Клиенты", "Расписание", "Отзывы Avito", "Анализ переписки", "Настройки")) {
         if ($null -eq (Find-NamedElement $window $name)) { throw "Нет доступного раздела: $name" }
+    }
+
+    Select-Section $window "Настройки"
+    Select-ComboBoxItem $window "Размер текста интерфейса" "200 %"
+    if ($null -eq (Find-NamedElement $window "Размер текста: 200 %. Изменение сохранено.")) {
+        throw "Масштаб текста 200 % не применился."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $testData "display-settings.dat"))) {
+        throw "Настройка крупного текста не сохранилась."
+    }
+    foreach ($name in @("Сегодня", "Клиенты", "Расписание", "Отзывы Avito", "Анализ переписки", "Настройки")) {
+        Select-Section $window $name
     }
 
     $todayItem = Find-NamedElement $window "Сегодня"
@@ -228,6 +254,9 @@ try {
         throw "Клиент не восстановился после перезапуска."
     }
     Select-Section $window "Настройки"
+    if ($null -eq (Find-NamedElement $window "Размер текста: 200 %.")) {
+        throw "Масштаб текста 200 % не восстановился после перезапуска."
+    }
     if ($null -eq (Find-NamedElement $window "Данные API Avito сохранены и защищены для текущей учётной записи Windows.")) {
         throw "Статус данных Avito API не восстановился после перезапуска."
     }
@@ -254,4 +283,4 @@ finally {
     }
 }
 
-Write-Output "MasterFlow E2E passed: Per-Monitor DPI, compact layout, keyboard navigation, persistence, encryption, local analysis, protected Avito API and AI settings."
+Write-Output "MasterFlow E2E passed: Per-Monitor DPI, 200% text, compact layout, keyboard navigation, persistence, encryption, local analysis, protected Avito API and AI settings."
