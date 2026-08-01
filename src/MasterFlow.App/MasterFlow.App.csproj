@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <Authors>Chigarev Anton</Authors>
     <Product>МастерFlow</Product>
     <Description>Доступный помощник для частных мастеров.</Description>

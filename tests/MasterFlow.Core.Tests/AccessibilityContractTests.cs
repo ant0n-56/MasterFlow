@@ -60,8 +60,8 @@ public sealed class AccessibilityContractTests
         var window = document.Root!;
         var mainScroll = document.Descendants(Presentation + "ScrollViewer").First();
 
-        Assert.Equal("820", window.Attribute("MinWidth")?.Value);
-        Assert.Equal("560", window.Attribute("MinHeight")?.Value);
+        Assert.Equal("720", window.Attribute("MinWidth")?.Value);
+        Assert.Equal("480", window.Attribute("MinHeight")?.Value);
         Assert.Contains("SystemColors.WindowBrushKey", window.Attribute("Background")?.Value);
         Assert.Contains("SystemColors.WindowTextBrushKey", window.Attribute("Foreground")?.Value);
         Assert.Equal("Auto", mainScroll.Attribute("VerticalScrollBarVisibility")?.Value);
@@ -72,6 +72,20 @@ public sealed class AccessibilityContractTests
             .Where(attribute => attribute.Name.LocalName is "Foreground" or "Background" or "BorderBrush")
             .Where(attribute => attribute.Value.StartsWith('#'));
         Assert.Empty(literalColorAttributes);
+    }
+
+    [Fact]
+    public void App_UsesPerMonitorV2DpiAwareness()
+    {
+        var root = FindProjectRoot().FullName;
+        var project = XDocument.Load(Path.Combine(root, "src", "MasterFlow.App", "MasterFlow.App.csproj"));
+        var manifestPath = project.Descendants("ApplicationManifest").Single().Value;
+        var manifest = File.ReadAllText(Path.Combine(root, "src", "MasterFlow.App", manifestPath));
+
+        Assert.Equal("app.manifest", manifestPath);
+        Assert.Contains("PerMonitorV2,PerMonitor", manifest);
+        Assert.Contains("true/pm", manifest);
+        Assert.Contains("requestedExecutionLevel level=\"asInvoker\" uiAccess=\"false\"", manifest);
     }
 
     [Fact]
