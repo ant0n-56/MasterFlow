@@ -340,7 +340,36 @@
                     <StackPanel x:Name="ReviewsPanel" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource SectionTitle}" Text="Отзывы Avito" />
                         <TextBlock Style="{StaticResource SectionDescription}"
-                                   Text="Откройте Avito в защищённой браузерной сессии программы. Если потребуется вход или проверка, выполните её самостоятельно. Когда вы откроете окно отзывов, импорт начнётся автоматически." />
+                                   Text="Рекомендуемый способ — официальный API Avito. Он получает все активные отзывы с точными оценками и не требует открывать страницу. Данные для API сохраняются в разделе «Настройки»." />
+
+                        <TextBlock FontWeight="SemiBold" Text="Официальный API Avito" />
+                        <TextBlock Margin="0,4,0,8"
+                                   Text="Нажмите кнопку, чтобы получить рейтинг и все опубликованные отзывы. МастерFlow использует только официальный адрес api.avito.ru."
+                                   TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button x:Name="ImportReviewsFromAvitoApiButton"
+                                    Content="Получить отзывы через официальный API"
+                                    IsEnabled="False"
+                                    AutomationProperties.Name="Получить отзывы через официальный API Avito"
+                                    AutomationProperties.HelpText="Получает рейтинг и активные отзывы с помощью сохранённых Client ID и Client Secret."
+                                    Click="ImportReviewsFromAvitoApi_Click" />
+                            <Button Content="Открыть настройки API"
+                                    AutomationProperties.Name="Открыть настройки официального API Avito"
+                                    AutomationProperties.HelpText="Переходит к полям Client ID и Client Secret."
+                                    Click="OpenAvitoApiSettings_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="AvitoApiReviewStatusText"
+                                   Margin="0,0,0,16"
+                                   Text="Данные API Avito не сохранены."
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Separator Margin="0,4,0,16" />
+                        <TextBlock FontWeight="SemiBold" Text="Запасной импорт из открытой страницы" />
+                        <TextBlock Margin="0,4,0,12"
+                                   Text="Если официальный API недоступен для вашего тарифа, откройте Avito в браузерной сессии программы. Вход и проверку выполняйте самостоятельно. Когда откроется окно отзывов, импорт начнётся автоматически."
+                                   TextWrapping="Wrap" />
 
                         <Label Target="{Binding ElementName=AvitoUrlTextBox}" Content="Ссылка на объявление или профиль Avito" />
                         <TextBox x:Name="AvitoUrlTextBox"
@@ -665,7 +694,43 @@
                     <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" MaxWidth="720" HorizontalAlignment="Left">
                         <TextBlock Style="{StaticResource SectionTitle}" Text="Настройки" />
                         <TextBlock Style="{StaticResource SectionDescription}"
-                                   Text="Локальные функции работают без ключа. Ключ OpenAI нужен только для необязательного дополнительного анализа и хранится защищённо для вашей учётной записи Windows." />
+                                   Text="Секретные данные Avito и OpenAI хранятся в отдельных защищённых файлах для вашей учётной записи Windows. После сохранения программа их больше не показывает." />
+
+                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="Официальный API Avito" />
+                        <TextBlock Margin="0,4,0,12"
+                                   Text="Создайте приложение на developers.avito.ru и получите Client ID и Client Secret. Для чтения отзывов приложению нужен доступ к API «Рейтинги и отзывы». Доступ зависит от условий и тарифа Avito."
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="AvitoApiSettingsStatusText"
+                                   Margin="0,0,0,12"
+                                   Text="Данные API Avito не сохранены."
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Label Target="{Binding ElementName=AvitoClientIdTextBox}" Content="Client ID Avito" />
+                        <TextBox x:Name="AvitoClientIdTextBox"
+                                 AutomationProperties.Name="Client ID официального API Avito"
+                                 AutomationProperties.HelpText="Вставьте Client ID приложения Avito. После сохранения поле очистится." />
+                        <Label Target="{Binding ElementName=AvitoClientSecretPasswordBox}" Content="Client Secret Avito" />
+                        <PasswordBox x:Name="AvitoClientSecretPasswordBox"
+                                     MinHeight="40"
+                                     Padding="8"
+                                     Margin="0,4,0,12"
+                                     AutomationProperties.Name="Client Secret официального API Avito"
+                                     AutomationProperties.HelpText="Вставьте Client Secret приложения Avito. После сохранения поле очистится, а данные будут защищены средствами Windows." />
+                        <WrapPanel>
+                            <Button Content="Сохранить данные Avito"
+                                    AutomationProperties.Name="Сохранить Client ID и Client Secret Avito защищённо"
+                                    Click="SaveAvitoApiSettings_Click" />
+                            <Button Content="Удалить данные Avito"
+                                    AutomationProperties.Name="Удалить сохранённые данные официального API Avito"
+                                    Click="DeleteAvitoApiSettings_Click" />
+                        </WrapPanel>
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="Временный токен Avito используется только во время импорта и не сохраняется."
+                                   TextWrapping="Wrap" />
+
+                        <Separator Margin="0,24,0,20" />
+                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="Дополнительный анализ OpenAI" />
                         <TextBlock FontWeight="SemiBold" Text="Модель ИИ: GPT-5.6 Terra" />
                         <TextBlock Margin="0,4,0,16"
                                    Text="Выбрана модель с балансом качества и стоимости. Каждый запрос может расходовать средства вашего аккаунта OpenAI."

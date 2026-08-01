@@ -174,6 +174,23 @@ try {
     }
 
     Select-Section $window "Настройки"
+    Set-TextById $window "AvitoClientIdTextBox" "avito-client-e2e"
+    $avitoSecretField = Find-NamedControl $window "Client Secret официального API Avito" ([System.Windows.Automation.ControlType]::Edit)
+    $avitoSecretField.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait("avito-secret-e2e-value")
+    (Find-NamedElement $window "Сохранить Client ID и Client Secret Avito защищённо").GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 250
+    $avitoSettingsPath = Join-Path $testData "avito-api-settings.dat"
+    if (-not (Test-Path -LiteralPath $avitoSettingsPath)) { throw "Защищённые настройки Avito API не созданы." }
+    $avitoSettingsRaw = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($avitoSettingsPath))
+    if ($avitoSettingsRaw.Contains("avito-client-e2e") -or $avitoSettingsRaw.Contains("avito-secret-e2e-value")) {
+        throw "Данные Avito API сохранены в открытом виде."
+    }
+    Select-Section $window "Отзывы Avito"
+    $officialImportButton = Find-NamedControl $window "Получить отзывы через официальный API Avito" ([System.Windows.Automation.ControlType]::Button)
+    if (-not $officialImportButton.Current.IsEnabled) { throw "Официальный импорт не включился после сохранения данных Avito." }
+    Select-Section $window "Настройки"
     $keyField = Find-NamedControl $window "Ключ OpenAI API" ([System.Windows.Automation.ControlType]::Edit)
     $keyField.SetFocus()
     [System.Windows.Forms.SendKeys]::SendWait("sk-test-e2e-abcdefghijklmnopqrstuvwxyz")
@@ -211,8 +228,17 @@ try {
         throw "Клиент не восстановился после перезапуска."
     }
     Select-Section $window "Настройки"
+    if ($null -eq (Find-NamedElement $window "Данные API Avito сохранены и защищены для текущей учётной записи Windows.")) {
+        throw "Статус данных Avito API не восстановился после перезапуска."
+    }
     if ($null -eq (Find-NamedElement $window "Ключ API сохранён и защищён для текущей учётной записи Windows.")) {
         throw "Статус ключа API не восстановился после перезапуска."
+    }
+    (Find-NamedElement $window "Удалить сохранённые данные официального API Avito").GetCurrentPattern(
+        [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 250
+    if (Test-Path -LiteralPath (Join-Path $testData "avito-api-settings.dat")) {
+        throw "Удаление данных Avito API не удалило защищённый файл."
     }
     (Find-NamedElement $window "Удалить сохранённый ключ OpenAI API").GetCurrentPattern(
         [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
@@ -228,4 +254,4 @@ finally {
     }
 }
 
-Write-Output "MasterFlow E2E passed: Per-Monitor DPI, compact layout, keyboard navigation, persistence, encryption, local analysis, cleanup and protected AI settings."
+Write-Output "MasterFlow E2E passed: Per-Monitor DPI, compact layout, keyboard navigation, persistence, encryption, local analysis, protected Avito API and AI settings."
