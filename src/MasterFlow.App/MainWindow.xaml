@@ -267,8 +267,16 @@
                         <ListBox x:Name="ImportedReviewsList"
                                  MinHeight="160"
                                  MaxHeight="280"
-                                 DisplayMemberPath="AccessibleSummary"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  AutomationProperties.Name="Список импортированных отзывов">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding AccessibleSummary}"
+                                               Margin="4"
+                                               TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />

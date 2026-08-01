@@ -48,14 +48,52 @@ public sealed class ReviewImportTests
     [Fact]
     public void Parse_RemovesNestedFragmentsOfTheSameReview()
     {
-        const string complete = "Виктория\nОценка 5 из 5\nЗамечательный специалист, мастер своего дела. Обязательно приду снова.";
-        const string authorFragment = "Виктория\nОценка 5 из 5";
-        const string textFragment = "Замечательный специалист, мастер своего дела. Обязательно приду снова.";
+        const string complete = "Ольга\nОценка 5 из 5\nВсё прошло хорошо. Планирую обратиться ещё раз.";
+        const string authorFragment = "Ольга\nОценка 5 из 5";
+        const string textFragment = "Всё прошло хорошо. Планирую обратиться ещё раз.";
 
         var review = Assert.Single(ReviewTextParser.Parse([complete, authorFragment, textFragment]));
 
-        Assert.Equal("Виктория", review.Author);
+        Assert.Equal("Ольга", review.Author);
         Assert.Equal(5, review.Rating);
+    }
+
+    [Fact]
+    public void Parse_IgnoresAggregateReviewSummary()
+    {
+        var reviews = ReviewTextParser.Parse([
+            "4,9\n27 отзывов клиентов",
+            "Ирина\nОчень внимательный мастер. Обязательно обращусь снова."
+        ]);
+
+        var review = Assert.Single(reviews);
+        Assert.Equal("Ирина", review.Author);
+    }
+
+    [Fact]
+    public void Parse_RemovesAvitoMetadataAndTechnicalRatingLabels()
+    {
+        const string block = """
+            Ирина
+            20 июля
+            Сделка состоялась · Помощь специалиста на дому
+            Очень внимательный мастер. Обязательно обращусь снова.
+            Показать целиком
+            Рейтинг 1
+            Рейтинг 2
+            Рейтинг 3
+            Рейтинг 4
+            Рейтинг 5
+            """;
+
+        var review = Assert.Single(ReviewTextParser.Parse([block]));
+
+        Assert.Equal("Ирина", review.Author);
+        Assert.Null(review.Rating);
+        Assert.Equal("Очень внимательный мастер. Обязательно обращусь снова.", review.Text);
+        Assert.Equal(
+            "Автор: Ирина. Очень внимательный мастер. Обязательно обращусь снова.",
+            review.AccessibleSummary);
     }
 
     [Fact]
@@ -66,5 +104,13 @@ public sealed class ReviewImportTests
         Assert.Equal(
             "Оценка 5 из 5. Дата 12.07.2026. Автор: Анна. Всё понравилось.",
             review.AccessibleSummary);
+    }
+
+    [Fact]
+    public void AccessibleSummary_DoesNotRepeatMissingRatingForEveryReview()
+    {
+        var review = new ReviewRecord("Ирина", null, null, "Всё понравилось.");
+
+        Assert.Equal("Автор: Ирина. Всё понравилось.", review.AccessibleSummary);
     }
 }

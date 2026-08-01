@@ -92,6 +92,18 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_ImportedReviewsWrapLongTextWithoutHorizontalScrolling()
+    {
+        var list = LoadMainWindow().Descendants(Presentation + "ListBox")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ImportedReviewsList");
+        var reviewText = list.Descendants(Presentation + "TextBlock").Single();
+
+        Assert.Equal("Disabled", list.Attribute("ScrollViewer.HorizontalScrollBarVisibility")?.Value);
+        Assert.Equal("Wrap", reviewText.Attribute("TextWrapping")?.Value);
+        Assert.Equal("{Binding AccessibleSummary}", reviewText.Attribute("Text")?.Value);
+    }
+
+    [Fact]
     public void MainWindow_AutomaticallyImportsWhenReviewDialogAppears()
     {
         var source = File.ReadAllText(Path.Combine(

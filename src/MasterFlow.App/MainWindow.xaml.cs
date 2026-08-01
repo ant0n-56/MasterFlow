@@ -540,15 +540,8 @@ public partial class MainWindow : Window
                 'article'
             ];
             const nodes = [...new Set(selectors.flatMap(selector => [...scope.querySelectorAll(selector)]))];
-            const enrich = node => {
-                const visibleText = (node.innerText || '').trim();
-                const ratingLabels = [...node.querySelectorAll('[aria-label], [title]')]
-                    .flatMap(element => [element.getAttribute('aria-label'), element.getAttribute('title')])
-                    .filter(value => value && /(оцен|рейтинг|зв[её]зд)/i.test(value));
-                return [visibleText, ...new Set(ratingLabels)].filter(Boolean).join('\n').trim();
-            };
             const blocks = nodes
-                .map(enrich)
+                .map(node => (node.innerText || '').trim())
                 .filter(text => text.length >= 20 && text.length <= 5000);
             const ratingMatch = (scope.innerText || '').match(/(?:^|\s)([1-5][,.]\d)(?=\s)/);
             const scrollable = [scope, ...scope.querySelectorAll('*')]
