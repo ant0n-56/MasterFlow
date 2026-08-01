@@ -131,6 +131,53 @@
                                    Margin="0,12,0,0"
                                    Text="Записей пока нет. Нажмите «Создать запись», чтобы добавить первую."
                                    TextWrapping="Wrap" />
+
+                        <Separator Margin="0,24,0,20" />
+                        <TextBlock FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Text="Напоминания клиентам" />
+                        <TextBlock Margin="0,4,0,12"
+                                   Text="Программа подготовит текст. Отправьте его удобным способом, затем отметьте напоминание как отправленное."
+                                   TextWrapping="Wrap" />
+                        <Label Target="{Binding ElementName=ClientRemindersList}"
+                               Content="Список напоминаний"
+                               FontWeight="SemiBold" />
+                        <ListBox x:Name="ClientRemindersList"
+                                 MinHeight="160"
+                                 MaxHeight="300"
+                                 DisplayMemberPath="AccessibleSummary"
+                                 AutomationProperties.Name="Список напоминаний клиентам"
+                                 AutomationProperties.HelpText="Сначала показаны напоминания, которые пора отправить. Каждый пункт содержит статус, клиента, контакт, услугу и время сеанса."
+                                 SelectionChanged="ClientRemindersList_SelectionChanged">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                        <TextBlock x:Name="EmptyRemindersText"
+                                   Margin="0,8,0,4"
+                                   Text="Напоминаний пока нет. Они появятся после создания записи."
+                                   TextWrapping="Wrap" />
+                        <WrapPanel>
+                            <Button x:Name="CopyReminderButton"
+                                    Content="Скопировать текст напоминания"
+                                    IsEnabled="False"
+                                    AutomationProperties.Name="Скопировать текст выбранного напоминания"
+                                    AutomationProperties.HelpText="Копирует готовый текст, который можно вставить в чат с клиентом."
+                                    Click="CopyReminder_Click" />
+                            <Button x:Name="MarkReminderSentButton"
+                                    Content="Отметить как отправленное"
+                                    IsEnabled="False"
+                                    AutomationProperties.Name="Отметить выбранное напоминание как отправленное"
+                                    Click="MarkReminderSent_Click" />
+                            <Button x:Name="ResetReminderButton"
+                                    Content="Вернуть в ожидающие"
+                                    IsEnabled="False"
+                                    AutomationProperties.Name="Вернуть выбранное напоминание в ожидающие"
+                                    AutomationProperties.HelpText="Используйте, если отметили отправку по ошибке."
+                                    Click="ResetReminder_Click" />
+                        </WrapPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="ClientsPanel" Visibility="Collapsed">

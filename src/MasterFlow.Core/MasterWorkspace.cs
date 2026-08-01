@@ -107,6 +107,67 @@ public sealed class MasterWorkspace
             .OrderByDescending(item => item.StartsAt)
             .ToList();
 
+    public IReadOnlyList<ClientReminder> GetClientReminders(DateTime now) =>
+        _appointments
+            .Where(appointment => !appointment.ReminderSentAt.HasValue || appointment.StartsAt > now)
+            .Select(appointment =>
+            {
+                var client = _clients.Single(item => item.Id == appointment.ClientId);
+                var state = appointment.ReminderSentAt.HasValue
+                    ? ReminderState.Sent
+                    : appointment.StartsAt <= now
+                        ? ReminderState.Missed
+                        : appointment.ReminderAt <= now
+                            ? ReminderState.Due
+                            : ReminderState.Scheduled;
+                return new ClientReminder(
+                    appointment.Id,
+                    appointment.ClientId,
+                    appointment.ClientName,
+                    client.Contact,
+                    appointment.ServiceName,
+                    appointment.StartsAt,
+                    appointment.ReminderAt,
+                    appointment.ReminderSentAt,
+                    state);
+            })
+            .OrderBy(reminder => reminder.State switch
+            {
+                ReminderState.Due => 0,
+                ReminderState.Missed => 1,
+                ReminderState.Scheduled => 2,
+                ReminderState.Sent => 3,
+                _ => 4
+            })
+            .ThenBy(reminder => reminder.ReminderAt)
+            .ToList();
+
+    public Appointment MarkReminderSent(Guid appointmentId, DateTime sentAt)
+    {
+        var index = _appointments.FindIndex(appointment => appointment.Id == appointmentId);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("Запись для напоминания не найдена.");
+        }
+
+        var updated = _appointments[index] with { ReminderSentAt = sentAt };
+        _appointments[index] = updated;
+        return updated;
+    }
+
+    public Appointment ResetReminder(Guid appointmentId)
+    {
+        var index = _appointments.FindIndex(appointment => appointment.Id == appointmentId);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("Запись для напоминания не найдена.");
+        }
+
+        var updated = _appointments[index] with { ReminderSentAt = null };
+        _appointments[index] = updated;
+        return updated;
+    }
+
     public WorkspaceSnapshot CreateSnapshot() =>
         new(WorkspaceSnapshot.CurrentVersion, _clients.ToArray(), _appointments.ToArray());
 
@@ -149,7 +210,8 @@ public sealed class MasterWorkspace
                 client.Name,
                 appointment.ServiceName,
                 appointment.StartsAt,
-                appointment.ReminderBefore));
+                appointment.ReminderBefore,
+                appointment.ReminderSentAt));
         }
 
         return workspace;

@@ -84,6 +84,24 @@ public sealed class WorkspacePersistenceTests
         Assert.Equal("contact-one", workspace.Clients.Single(client => client.Id == first.Id).Contact);
     }
 
+    [Fact]
+    public void SaveAndLoad_PreservesSentReminderStatus()
+    {
+        using var folder = new TemporaryFolder();
+        var path = Path.Combine(folder.Path, "workspace.dat");
+        var store = new FileWorkspaceStore(path, new XorProtector());
+        var workspace = CreateWorkspace("reminder-contact");
+        var appointment = Assert.Single(workspace.Appointments);
+        var sentAt = Now.AddMinutes(15);
+        workspace.MarkReminderSent(appointment.Id, sentAt);
+
+        store.Save(workspace);
+        var restored = store.Load().Workspace;
+
+        Assert.Equal(sentAt, Assert.Single(restored.Appointments).ReminderSentAt);
+        Assert.Equal(ReminderState.Sent, Assert.Single(restored.GetClientReminders(Now.AddMinutes(20))).State);
+    }
+
     private static MasterWorkspace CreateWorkspace(string contact)
     {
         var workspace = new MasterWorkspace();
