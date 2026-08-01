@@ -263,6 +263,13 @@
                                    TextWrapping="Wrap"
                                    AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
                                    AutomationProperties.LiveSetting="Polite" />
+                        <Button x:Name="AnalyzeReviewsButton"
+                                Content="Проанализировать отзывы"
+                                IsEnabled="False"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Проанализировать импортированные отзывы"
+                                AutomationProperties.HelpText="Показывает сильные стороны, возможные проблемы и рекомендации. Анализ выполняется на этом компьютере."
+                                Click="AnalyzeReviews_Click" />
                         <Label Target="{Binding ElementName=ImportedReviewsList}" Content="Импортированные отзывы" />
                         <ListBox x:Name="ImportedReviewsList"
                                  MinHeight="160"
@@ -283,6 +290,98 @@
                                 </Style>
                             </ListBox.ItemContainerStyle>
                         </ListBox>
+
+                        <StackPanel x:Name="ReviewAnalysisPanel"
+                                    Margin="0,24,0,0"
+                                    Visibility="Collapsed">
+                            <Separator Margin="0,0,0,20" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Анализ отзывов" />
+                            <TextBlock Text="Анализ выполняется на этом компьютере. Отзывы не отправляются в интернет."
+                                       Margin="0,0,0,12"
+                                       TextWrapping="Wrap" />
+                            <TextBlock x:Name="ReviewAnalysisSummaryText"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,16"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                       AutomationProperties.LiveSetting="Polite" />
+
+                            <Label Target="{Binding ElementName=ReviewStrengthsList}"
+                                   Content="Что особенно ценят клиенты"
+                                   FontWeight="SemiBold" />
+                            <ListBox x:Name="ReviewStrengthsList"
+                                     MaxHeight="260"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="Сильные стороны по отзывам">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessibleSummary}"
+                                                   Margin="4"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                            <TextBlock x:Name="NoStrengthsText"
+                                       Margin="4,8,0,12"
+                                       Text="Повторяющиеся сильные стороны пока не найдены."
+                                       TextWrapping="Wrap"
+                                       Visibility="Collapsed" />
+
+                            <Label Target="{Binding ElementName=ReviewAttentionList}"
+                                   Content="Что требует внимания"
+                                   FontWeight="SemiBold" />
+                            <ListBox x:Name="ReviewAttentionList"
+                                     MaxHeight="220"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="Темы, которые требуют внимания">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessibleSummary}"
+                                                   Margin="4"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                            <TextBlock x:Name="NoAttentionAreasText"
+                                       Margin="4,8,0,12"
+                                       Text="Повторяющихся проблем в тексте не найдено."
+                                       TextWrapping="Wrap"
+                                       Visibility="Collapsed" />
+
+                            <Label Target="{Binding ElementName=ReviewRecommendationsList}"
+                                   Content="Что можно сделать"
+                                   FontWeight="SemiBold" />
+                            <ListBox x:Name="ReviewRecommendationsList"
+                                     MaxHeight="280"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="Рекомендации по отзывам">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessibleSummary}"
+                                                   Margin="4"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="ConversationsPanel" Visibility="Collapsed">
