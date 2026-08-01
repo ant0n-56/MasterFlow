@@ -89,6 +89,24 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_OffersAccessibleTextScalingUpToTwoHundredPercent()
+    {
+        var document = LoadMainWindow();
+        var combo = document.Descendants(Presentation + "ComboBox")
+            .Single(element => element.Attribute("AutomationProperties.Name")?.Value == "Размер текста интерфейса");
+        var percents = combo.Elements(Presentation + "ComboBoxItem")
+            .Select(item => item.Attribute("Tag")?.Value ?? string.Empty)
+            .ToArray();
+        var source = LoadMainWindowSource();
+
+        Assert.Equal(["100", "125", "150", "175", "200"], percents);
+        Assert.Equal("Доступны значения от 100 до 200 процентов.", combo.Attribute("AutomationProperties.HelpText")?.Value);
+        Assert.Contains("ApplyTextScale", source);
+        Assert.Contains("Resources[\"BaseFontSize\"]", source);
+        Assert.Contains("Math.Min(factor, 1.25d)", source);
+    }
+
+    [Fact]
     public void MainWindow_InteractiveControlsHaveLargeDefaultTargets()
     {
         var document = LoadMainWindow();
