@@ -1,0 +1,49 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Id="AntonChigarev.MasterFlow"
+           Name="МастерFlow"
+           Manufacturer="Chigarev Anton"
+           Version="0.1.0"
+           Language="1049"
+           UpgradeCode="B874BB15-A249-4D82-A77B-173EDDC7EA57"
+           Scope="perMachine">
+    <SummaryInformation Description="Доступный помощник частного мастера" />
+    <MajorUpgrade DowngradeErrorMessage="На компьютере уже установлена более новая версия МастерFlow." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="МастерFlow" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MasterFlowProgramMenuFolder" Name="МастерFlow" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="PublishedFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="MasterFlowProgramMenuFolder">
+      <Shortcut Id="MasterFlowStartMenuShortcut"
+                Name="МастерFlow"
+                Description="Клиенты, записи и обратная связь"
+                Target="[INSTALLFOLDER]MasterFlow.App.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveMasterFlowProgramMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKCU"
+                     Key="Software\Chigarev Anton\MasterFlow"
+                     Name="StartMenuShortcut"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <Feature Id="MainFeature" Title="МастерFlow" Level="1">
+      <ComponentGroupRef Id="PublishedFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(sys.SOURCEFILEDIR)TestLicense.rtf" />
+  </Package>
+</Wix>

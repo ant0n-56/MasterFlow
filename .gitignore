@@ -4,6 +4,8 @@ bin/
 obj/
 dist/
 build/
+artifacts/
+.build-cache/
 .next/
 
 # Local environment and secrets
