@@ -92,6 +92,23 @@ try {
         if ($null -eq (Find-NamedElement $window $name)) { throw "Нет доступного раздела: $name" }
     }
 
+    $todayItem = Find-NamedElement $window "Сегодня"
+    $todayItem.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait("{HOME}{DOWN}{DOWN}{TAB}")
+    Start-Sleep -Milliseconds 250
+    $keyboardFocus = [System.Windows.Automation.AutomationElement]::FocusedElement
+    if ($keyboardFocus.Current.Name -ne "Имя клиента") {
+        throw "Клавиатурный переход из дерева в форму расписания нарушен: $($keyboardFocus.Current.Name)"
+    }
+    [System.Windows.Forms.SendKeys]::SendWait("KeyboardFocusProbe")
+    [System.Windows.Forms.SendKeys]::SendWait("{TAB 8}{ENTER}")
+    Start-Sleep -Milliseconds 250
+    $keyboardProbeValue = (Find-AutomationId $window "ClientNameTextBox").GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    if ($keyboardProbeValue.Length -ne 0) {
+        throw "Кнопка очистки формы не сработала с клавиатуры."
+    }
+
     Select-Section $window "Расписание"
     Set-TextById $window "ClientNameTextBox" "Тестовый клиент"
     Set-TextById $window "ClientContactTextBox" "test-contact-e2e"
@@ -185,4 +202,4 @@ finally {
     }
 }
 
-Write-Output "MasterFlow E2E passed: persistence, encryption, local analysis, cleanup and protected AI settings."
+Write-Output "MasterFlow E2E passed: keyboard navigation, persistence, encryption, local analysis, cleanup and protected AI settings."
