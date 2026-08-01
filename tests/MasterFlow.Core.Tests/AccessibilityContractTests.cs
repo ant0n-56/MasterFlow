@@ -104,6 +104,33 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_ReviewAnalysisHasAccessibleControlsAndLiveSummary()
+    {
+        var document = LoadMainWindow();
+        var analyzeButton = document.Descendants(Presentation + "Button")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "AnalyzeReviewsButton");
+        var summary = document.Descendants(Presentation + "TextBlock")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ReviewAnalysisSummaryText");
+        var analysisLists = new[] { "ReviewStrengthsList", "ReviewAttentionList", "ReviewRecommendationsList" }
+            .Select(name => document.Descendants(Presentation + "ListBox")
+                .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == name))
+            .ToArray();
+
+        Assert.Equal("Проанализировать импортированные отзывы", analyzeButton.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("Polite", summary.Attribute("AutomationProperties.LiveSetting")?.Value);
+        Assert.All(analysisLists, list =>
+            Assert.False(string.IsNullOrWhiteSpace(list.Attribute("AutomationProperties.Name")?.Value)));
+
+        var source = File.ReadAllText(Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "MainWindow.xaml.cs"));
+        Assert.Contains("ItemContainerGenerator.ContainerFromIndex(0)", source);
+        Assert.Contains("item.Focus()", source);
+    }
+
+    [Fact]
     public void MainWindow_AutomaticallyImportsWhenReviewDialogAppears()
     {
         var source = File.ReadAllText(Path.Combine(

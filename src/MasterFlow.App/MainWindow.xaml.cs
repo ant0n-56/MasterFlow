@@ -16,6 +16,8 @@ public partial class MainWindow : Window
     private bool _reviewBrowserReady;
     private bool _reviewImportInProgress;
     private bool _reviewDialogWasVisible;
+    private IReadOnlyList<ReviewRecord> _importedReviews = [];
+    private double? _importedAverageRating;
 
     public MainWindow()
     {
@@ -141,6 +143,7 @@ public partial class MainWindow : Window
 
         ImportVisibleReviewsButton.IsEnabled = false;
         _reviewDialogWasVisible = false;
+        ResetImportedReviews();
         AvitoBrowser.Source = link!.Uri;
         Announce("Открываем Avito. Дождитесь загрузки страницы, затем откройте отзывы.");
         AvitoBrowser.Focus();
@@ -183,6 +186,7 @@ public partial class MainWindow : Window
             ImportedReviewsList.ItemsSource = reviews;
             if (reviews.Count == 0)
             {
+                ResetImportedReviews();
                 ReviewImportSummaryText.Text = "Отзывы не найдены. Откройте на странице раздел с отзывами и повторите импорт.";
                 Announce(ReviewImportSummaryText.Text);
                 return;
@@ -198,9 +202,13 @@ public partial class MainWindow : Window
             {
                 average = overallRating;
             }
+            _importedReviews = reviews;
+            _importedAverageRating = average;
             ReviewImportSummaryText.Text = average.HasValue
                 ? $"Импортировано отзывов: {reviews.Count}. Средняя оценка: {average:0.0} из 5."
                 : $"Импортировано отзывов: {reviews.Count}. Оценки в открытом тексте не найдены.";
+            AnalyzeReviewsButton.IsEnabled = true;
+            ShowReviewAnalysis(focusResults: false);
             ImportedReviewsList.SelectedIndex = 0;
             ImportedReviewsList.Focus();
             Announce(ReviewImportSummaryText.Text);
@@ -264,8 +272,7 @@ public partial class MainWindow : Window
         {
             await AvitoBrowser.CoreWebView2.Profile.ClearBrowsingDataAsync();
             AvitoBrowser.CoreWebView2.Navigate("about:blank");
-            ImportedReviewsList.ItemsSource = null;
-            ReviewImportSummaryText.Text = "Отзывы ещё не импортированы.";
+            ResetImportedReviews();
             ImportVisibleReviewsButton.IsEnabled = false;
             Announce("Данные браузера удалены. Вы вышли из Avito в МастерFlow.");
         }
@@ -273,6 +280,75 @@ public partial class MainWindow : Window
         {
             Announce("Не удалось удалить данные браузера. Закройте программу и попробуйте снова.");
         }
+    }
+
+    private void AnalyzeReviews_Click(object sender, RoutedEventArgs e)
+    {
+        if (_importedReviews.Count == 0)
+        {
+            Announce("Сначала импортируйте отзывы.");
+            return;
+        }
+
+        ShowReviewAnalysis(focusResults: true);
+        Announce("Анализ отзывов готов. Показаны сильные стороны, темы для внимания и рекомендации.");
+    }
+
+    private void ShowReviewAnalysis(bool focusResults)
+    {
+        var analysis = ReviewAnalyzer.Analyze(_importedReviews, _importedAverageRating);
+        ReviewAnalysisSummaryText.Text = analysis.Summary;
+        ReviewStrengthsList.ItemsSource = analysis.Strengths;
+        ReviewAttentionList.ItemsSource = analysis.AttentionAreas;
+        ReviewRecommendationsList.ItemsSource = analysis.Recommendations;
+        NoStrengthsText.Visibility = analysis.Strengths.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NoAttentionAreasText.Visibility = analysis.AttentionAreas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ReviewAnalysisPanel.Visibility = Visibility.Visible;
+
+        if (!focusResults)
+        {
+            return;
+        }
+
+        if (analysis.Strengths.Count > 0)
+        {
+            ReviewStrengthsList.SelectedIndex = 0;
+            FocusFirstAnalysisItem(ReviewStrengthsList);
+        }
+        else
+        {
+            ReviewRecommendationsList.SelectedIndex = 0;
+            FocusFirstAnalysisItem(ReviewRecommendationsList);
+        }
+    }
+
+    private void FocusFirstAnalysisItem(ListBox list)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            list.UpdateLayout();
+            if (list.ItemContainerGenerator.ContainerFromIndex(0) is ListBoxItem item)
+            {
+                item.Focus();
+            }
+            else
+            {
+                list.Focus();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void ResetImportedReviews()
+    {
+        _importedReviews = [];
+        _importedAverageRating = null;
+        ImportedReviewsList.ItemsSource = null;
+        ReviewImportSummaryText.Text = "Отзывы ещё не импортированы.";
+        AnalyzeReviewsButton.IsEnabled = false;
+        ReviewAnalysisPanel.Visibility = Visibility.Collapsed;
+        ReviewStrengthsList.ItemsSource = null;
+        ReviewAttentionList.ItemsSource = null;
+        ReviewRecommendationsList.ItemsSource = null;
     }
 
     private void ClearForm()
