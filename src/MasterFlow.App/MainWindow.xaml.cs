@@ -15,6 +15,8 @@ public partial class MainWindow : Window
     private MasterWorkspace _workspace = new();
     private readonly FileWorkspaceStore _workspaceStore;
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _reminderTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private readonly HashSet<Guid> _announcedDueReminders = [];
     private bool _reviewBrowserReady;
     private bool _reviewImportInProgress;
     private bool _reviewDialogWasVisible;
@@ -29,6 +31,7 @@ public partial class MainWindow : Window
             Path.Combine(dataFolder, "workspace.dat"),
             new WindowsWorkspaceProtector());
         _reviewDetectionTimer.Tick += ReviewDetectionTimer_Tick;
+        _reminderTimer.Tick += ReminderTimer_Tick;
     }
 
     private static string ResolveDataFolder()
@@ -48,6 +51,7 @@ public partial class MainWindow : Window
         AppointmentDatePicker.SelectedDate = DateTime.Today.AddDays(1);
         AppointmentTimeTextBox.Text = "10:00";
         RefreshLists();
+        _reminderTimer.Start();
         TodayNavigationItem.IsSelected = true;
         TodayNavigationItem.Focus();
         if (!string.IsNullOrEmpty(loadMessage))
@@ -60,6 +64,7 @@ public partial class MainWindow : Window
     private void Window_Closed(object? sender, EventArgs e)
     {
         _reviewDetectionTimer.Stop();
+        _reminderTimer.Stop();
     }
 
     private void NavigationTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -81,7 +86,96 @@ public partial class MainWindow : Window
     private void Refresh_Click(object sender, RoutedEventArgs e)
     {
         RefreshLists();
-        Announce("Список ближайших записей обновлён.");
+        Announce("Списки записей и напоминаний обновлены.");
+    }
+
+    private void ClientRemindersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var reminder = ClientRemindersList.SelectedItem as ClientReminder;
+        CopyReminderButton.IsEnabled = reminder is not null;
+        MarkReminderSentButton.IsEnabled = reminder is not null && reminder.State != ReminderState.Sent;
+        ResetReminderButton.IsEnabled = reminder?.State == ReminderState.Sent;
+    }
+
+    private void CopyReminder_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientRemindersList.SelectedItem is not ClientReminder reminder)
+        {
+            Announce("Выберите напоминание.");
+            ClientRemindersList.Focus();
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(reminder.Message);
+            Announce($"Текст напоминания для клиента «{reminder.ClientName}» скопирован.");
+        }
+        catch (Exception)
+        {
+            Announce("Не удалось скопировать текст. Закройте программы, которые используют буфер обмена, и попробуйте снова.");
+        }
+    }
+
+    private void MarkReminderSent_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientRemindersList.SelectedItem is not ClientReminder reminder)
+        {
+            Announce("Выберите напоминание.");
+            ClientRemindersList.Focus();
+            return;
+        }
+
+        var snapshotBeforeChange = _workspace.CreateSnapshot();
+        _workspace.MarkReminderSent(reminder.AppointmentId, DateTime.Now);
+        if (!SaveWorkspace(snapshotBeforeChange))
+        {
+            return;
+        }
+
+        _announcedDueReminders.Add(reminder.AppointmentId);
+        RefreshLists(selectedReminderId: reminder.AppointmentId);
+        ClientRemindersList.Focus();
+        Announce($"Напоминание для клиента «{reminder.ClientName}» отмечено как отправленное.");
+    }
+
+    private void ResetReminder_Click(object sender, RoutedEventArgs e)
+    {
+        if (ClientRemindersList.SelectedItem is not ClientReminder reminder)
+        {
+            Announce("Выберите отправленное напоминание.");
+            ClientRemindersList.Focus();
+            return;
+        }
+
+        var snapshotBeforeChange = _workspace.CreateSnapshot();
+        _workspace.ResetReminder(reminder.AppointmentId);
+        if (!SaveWorkspace(snapshotBeforeChange))
+        {
+            return;
+        }
+
+        RefreshLists(selectedReminderId: reminder.AppointmentId);
+        ClientRemindersList.Focus();
+        Announce($"Напоминание для клиента «{reminder.ClientName}» снова ожидает отправки.");
+    }
+
+    private void ReminderTimer_Tick(object? sender, EventArgs e)
+    {
+        var reminders = _workspace.GetClientReminders(DateTime.Now);
+        var newlyDue = reminders
+            .Where(reminder => reminder.State == ReminderState.Due)
+            .Where(reminder => _announcedDueReminders.Add(reminder.AppointmentId))
+            .ToList();
+        RefreshReminderList(reminders);
+        if (newlyDue.Count == 1)
+        {
+            Announce($"Пора отправить напоминание клиенту «{newlyDue[0].ClientName}».");
+        }
+        else if (newlyDue.Count > 1)
+        {
+            Announce($"Пора отправить напоминания. Клиентов: {newlyDue.Count}.");
+        }
     }
 
     private void SaveAppointment_Click(object sender, RoutedEventArgs e)
@@ -549,12 +643,35 @@ public partial class MainWindow : Window
         RefreshLists();
     }
 
-    private void RefreshLists(Guid? selectedClientId = null)
+    private void RefreshLists(Guid? selectedClientId = null, Guid? selectedReminderId = null)
     {
         var appointments = _workspace.GetUpcoming(DateTime.Now);
         UpcomingAppointmentsList.ItemsSource = appointments;
         EmptyAppointmentsText.Visibility = appointments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RefreshReminderList(_workspace.GetClientReminders(DateTime.Now), selectedReminderId);
         RefreshClientList(selectedClientId);
+    }
+
+    private void RefreshReminderList(
+        IReadOnlyList<ClientReminder> reminders,
+        Guid? selectedReminderId = null)
+    {
+        var previousId = selectedReminderId ?? (ClientRemindersList.SelectedItem as ClientReminder)?.AppointmentId;
+        ClientRemindersList.ItemsSource = reminders;
+        EmptyRemindersText.Visibility = reminders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (previousId.HasValue)
+        {
+            ClientRemindersList.SelectedItem = reminders.FirstOrDefault(
+                reminder => reminder.AppointmentId == previousId.Value);
+        }
+
+        if (ClientRemindersList.SelectedItem is null)
+        {
+            CopyReminderButton.IsEnabled = false;
+            MarkReminderSentButton.IsEnabled = false;
+            ResetReminderButton.IsEnabled = false;
+        }
     }
 
     private void RefreshClientList(Guid? selectedClientId = null)

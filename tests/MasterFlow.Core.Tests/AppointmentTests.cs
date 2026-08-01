@@ -71,4 +71,50 @@ public sealed class AppointmentTests
         Assert.Equal("Анна. Контакт: avito-chat-1. Источник: Avito.", client.AccessibleSummary);
         Assert.DoesNotContain("Guid", client.AccessibleSummary);
     }
+
+    [Fact]
+    public void GetClientReminders_PrioritizesDueReminderAndBuildsClearMessage()
+    {
+        var workspace = new MasterWorkspace();
+        var client = workspace.AddClient("Анна", "avito-chat-1");
+        workspace.AddAppointment(
+            client,
+            "Массаж спины",
+            Now.AddHours(1),
+            TimeSpan.FromHours(2),
+            Now.AddDays(-1));
+
+        var reminder = Assert.Single(workspace.GetClientReminders(Now));
+
+        Assert.Equal(ReminderState.Due, reminder.State);
+        Assert.StartsWith("Здравствуйте, Анна!", reminder.Message);
+        Assert.Contains("Массаж спины", reminder.Message);
+        Assert.Contains("11:00", reminder.Message);
+        Assert.Contains("Контакт: avito-chat-1", reminder.AccessibleSummary);
+    }
+
+    [Fact]
+    public void MarkAndResetReminder_ChangeVisibleStatus()
+    {
+        var workspace = new MasterWorkspace();
+        var client = workspace.AddClient("Анна", "avito-chat-1");
+        var appointment = workspace.AddAppointment(
+            client,
+            "Массаж",
+            Now.AddDays(1),
+            TimeSpan.FromHours(2),
+            Now);
+
+        workspace.MarkReminderSent(appointment.Id, Now.AddMinutes(5));
+
+        var sent = Assert.Single(workspace.GetClientReminders(Now.AddMinutes(10)));
+        Assert.Equal(ReminderState.Sent, sent.State);
+        Assert.Equal(Now.AddMinutes(5), sent.SentAt);
+
+        workspace.ResetReminder(appointment.Id);
+
+        var scheduled = Assert.Single(workspace.GetClientReminders(Now.AddMinutes(10)));
+        Assert.Equal(ReminderState.Scheduled, scheduled.State);
+        Assert.Null(scheduled.SentAt);
+    }
 }

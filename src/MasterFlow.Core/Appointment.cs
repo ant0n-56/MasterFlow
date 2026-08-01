@@ -6,12 +6,16 @@ public sealed record Appointment(
     string ClientName,
     string ServiceName,
     DateTime StartsAt,
-    TimeSpan ReminderBefore)
+    TimeSpan ReminderBefore,
+    DateTime? ReminderSentAt = null)
 {
     public DateTime ReminderAt => StartsAt - ReminderBefore;
 
     public string AccessibleSummary =>
-        $"{ClientName}. {ServiceName}. {StartsAt:dddd, d MMMM, HH:mm}. Напомнить за {FormatReminder(ReminderBefore)}.";
+        $"{ClientName}. {ServiceName}. {StartsAt:dddd, d MMMM, HH:mm}. " +
+        (ReminderSentAt.HasValue
+            ? $"Напоминание отправлено {ReminderSentAt.Value:dddd, d MMMM, HH:mm}."
+            : $"Напомнить за {FormatReminder(ReminderBefore)}.");
 
     public static Appointment Create(
         ClientRecord client,
@@ -57,7 +61,8 @@ public sealed record Appointment(
         string clientName,
         string serviceName,
         DateTime startsAt,
-        TimeSpan reminderBefore)
+        TimeSpan reminderBefore,
+        DateTime? reminderSentAt = null)
     {
         if (id == Guid.Empty || clientId == Guid.Empty)
         {
@@ -80,7 +85,8 @@ public sealed record Appointment(
             clientName.Trim(),
             serviceName.Trim(),
             startsAt,
-            reminderBefore);
+            reminderBefore,
+            reminderSentAt);
     }
 
     private static string FormatReminder(TimeSpan value)

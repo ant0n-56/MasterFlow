@@ -180,6 +180,26 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_RemindersHaveAccessibleListAndNamedActions()
+    {
+        var document = LoadMainWindow();
+        var list = document.Descendants(Presentation + "ListBox")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ClientRemindersList");
+        string[] actions =
+        [
+            "Скопировать текст выбранного напоминания",
+            "Отметить выбранное напоминание как отправленное",
+            "Вернуть выбранное напоминание в ожидающие"
+        ];
+
+        Assert.Equal("Список напоминаний клиентам", list.Attribute("AutomationProperties.Name")?.Value);
+        Assert.False(string.IsNullOrWhiteSpace(list.Attribute("AutomationProperties.HelpText")?.Value));
+        Assert.All(actions, action => Assert.Contains(
+            document.Descendants(Presentation + "Button"),
+            button => button.Attribute("AutomationProperties.Name")?.Value == action));
+    }
+
+    [Fact]
     public void MainWindow_ProtectsWorkspaceForCurrentWindowsUser()
     {
         var source = File.ReadAllText(Path.Combine(
