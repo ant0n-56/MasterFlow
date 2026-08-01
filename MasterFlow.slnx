@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MasterFlow.App/MasterFlow.App.csproj" />
+    <Project Path="src/MasterFlow.Core/MasterFlow.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MasterFlow.Core.Tests/MasterFlow.Core.Tests.csproj" />
+  </Folder>
+</Solution>

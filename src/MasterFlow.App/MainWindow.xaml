@@ -1,0 +1,241 @@
+<Window x:Class="MasterFlow.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="МастерFlow"
+        Width="1100"
+        Height="720"
+        MinWidth="820"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        FontSize="16"
+        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+        Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
+        AutomationProperties.Name="МастерFlow — помощник частного мастера"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Margin" Value="0,4,8,4" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Margin" Value="0,4,0,12" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="0,4,0,12" />
+        </Style>
+        <Style TargetType="DatePicker">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="0,4,0,12" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="SectionDescription" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,20" />
+            <Setter Property="MaxWidth" Value="760" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top"
+                Padding="24,16"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock FontSize="30" FontWeight="Bold" Text="МастерFlow" />
+                <TextBlock Margin="0,4,0,0" Text="Клиенты, записи и обратная связь — в одной программе." />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom"
+                Padding="16,10"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText"
+                       Text="Программа готова к работе."
+                       TextWrapping="Wrap"
+                       AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}"
+                       AutomationProperties.HelpText="Состояние программы"
+                       AutomationProperties.LiveSetting="Polite" />
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="270" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Padding="16"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="0,0,1,0">
+                <GroupBox Header="Разделы программы">
+                    <TreeView x:Name="NavigationTree"
+                              Margin="8"
+                              BorderThickness="0"
+                              AutomationProperties.Name="Дерево разделов программы"
+                              AutomationProperties.HelpText="Выберите раздел стрелками и нажмите Enter."
+                              SelectedItemChanged="NavigationTree_SelectedItemChanged">
+                        <TreeViewItem x:Name="TodayNavigationItem" Header="Сегодня" Tag="Today" />
+                        <TreeViewItem Header="Клиенты" Tag="Clients" />
+                        <TreeViewItem Header="Расписание" Tag="Schedule" />
+                        <TreeViewItem Header="Обратная связь" IsExpanded="True">
+                            <TreeViewItem Header="Отзывы Avito" Tag="Reviews" />
+                            <TreeViewItem Header="Анализ переписки" Tag="Conversations" />
+                        </TreeViewItem>
+                    </TreeView>
+                </GroupBox>
+            </Border>
+
+            <ScrollViewer Grid.Column="1"
+                          Padding="28"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Grid>
+                    <StackPanel x:Name="TodayPanel">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Сегодня" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="Здесь показаны ближайшие записи и действия, которые нельзя забыть." />
+                        <WrapPanel Margin="0,0,0,16">
+                            <Button Content="Создать запись"
+                                    AutomationProperties.Name="Создать запись"
+                                    AutomationProperties.HelpText="Открывает форму новой записи на сеанс."
+                                    Click="OpenSchedule_Click" />
+                            <Button Content="Обновить список"
+                                    AutomationProperties.Name="Обновить список ближайших записей"
+                                    Click="Refresh_Click" />
+                        </WrapPanel>
+                        <Label Target="{Binding ElementName=UpcomingAppointmentsList}" Content="Ближайшие записи" FontWeight="SemiBold" />
+                        <ListBox x:Name="UpcomingAppointmentsList"
+                                 MinHeight="180"
+                                 DisplayMemberPath="AccessibleSummary"
+                                 AutomationProperties.Name="Список ближайших записей"
+                                 AutomationProperties.HelpText="Каждый пункт содержит имя клиента, услугу, время сеанса и время напоминания.">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                        <TextBlock x:Name="EmptyAppointmentsText"
+                                   Margin="0,12,0,0"
+                                   Text="Записей пока нет. Нажмите «Создать запись», чтобы добавить первую."
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ClientsPanel" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Клиенты" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="В списке хранятся клиенты, для которых уже создавались записи." />
+                        <Label Target="{Binding ElementName=ClientsList}" Content="Список клиентов" FontWeight="SemiBold" />
+                        <ListBox x:Name="ClientsList"
+                                 MinHeight="220"
+                                 DisplayMemberPath="Name"
+                                 AutomationProperties.Name="Список клиентов">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                        <TextBlock x:Name="EmptyClientsText"
+                                   Margin="0,12,0,0"
+                                   Text="Клиентов пока нет. Клиент появится здесь после создания первой записи."
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SchedulePanel" Visibility="Collapsed" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Новая запись" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="Заполните данные клиента и выберите время сеанса. Все поля, кроме заметки, обязательны." />
+
+                        <Label Target="{Binding ElementName=ClientNameTextBox}" Content="Имя клиента" />
+                        <TextBox x:Name="ClientNameTextBox"
+                                 AutomationProperties.Name="Имя клиента"
+                                 AutomationProperties.HelpText="Например, Анна." />
+
+                        <Label Target="{Binding ElementName=ClientContactTextBox}" Content="Контакт клиента" />
+                        <TextBox x:Name="ClientContactTextBox"
+                                 AutomationProperties.Name="Контакт клиента"
+                                 AutomationProperties.HelpText="Например, телефон, имя пользователя или номер чата Avito." />
+
+                        <Label Target="{Binding ElementName=ServiceNameTextBox}" Content="Услуга" />
+                        <TextBox x:Name="ServiceNameTextBox"
+                                 AutomationProperties.Name="Услуга"
+                                 AutomationProperties.HelpText="Например, массаж спины." />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <Label Target="{Binding ElementName=AppointmentDatePicker}" Content="Дата сеанса" />
+                                <DatePicker x:Name="AppointmentDatePicker"
+                                            AutomationProperties.Name="Дата сеанса" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Label Target="{Binding ElementName=AppointmentTimeTextBox}" Content="Время сеанса" />
+                                <TextBox x:Name="AppointmentTimeTextBox"
+                                         AutomationProperties.Name="Время сеанса"
+                                         AutomationProperties.HelpText="Введите время в формате часы, двоеточие, минуты. Например, 15:30." />
+                            </StackPanel>
+                        </Grid>
+
+                        <Label Target="{Binding ElementName=ReminderComboBox}" Content="Когда напомнить" />
+                        <ComboBox x:Name="ReminderComboBox"
+                                  SelectedIndex="2"
+                                  AutomationProperties.Name="Когда напомнить клиенту">
+                            <ComboBoxItem Content="За 30 минут" Tag="30" />
+                            <ComboBoxItem Content="За 1 час" Tag="60" />
+                            <ComboBoxItem Content="За 2 часа" Tag="120" />
+                            <ComboBoxItem Content="За 1 день" Tag="1440" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=ClientNotesTextBox}" Content="Заметка, необязательно" />
+                        <TextBox x:Name="ClientNotesTextBox"
+                                 MinHeight="72"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 AutomationProperties.Name="Заметка о клиенте" />
+
+                        <WrapPanel>
+                            <Button Content="Сохранить запись"
+                                    IsDefault="True"
+                                    AutomationProperties.Name="Сохранить запись"
+                                    Click="SaveAppointment_Click" />
+                            <Button Content="Очистить форму"
+                                    AutomationProperties.Name="Очистить форму новой записи"
+                                    Click="ClearForm_Click" />
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="ReviewsPanel" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Отзывы Avito" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="Этот раздел будет получать отзывы по ссылке на профиль и объяснять, что ценят клиенты и что можно улучшить." />
+                        <TextBlock Text="Компонент будет добавлен после проверки разрешённых способов получения отзывов Avito."
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ConversationsPanel" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Анализ переписки" />
+                        <TextBlock Style="{StaticResource SectionDescription}"
+                                   Text="Здесь можно будет загрузить текст или скриншоты переписки и получить рекомендации по ответам и объявлению." />
+                        <TextBlock Text="До реализации мы определим правила безопасной обработки и удаления персональных данных."
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>
