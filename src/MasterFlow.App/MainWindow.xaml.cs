@@ -17,11 +17,15 @@ public partial class MainWindow : Window
     private MasterWorkspace _workspace = new();
     private readonly FileWorkspaceStore _workspaceStore;
     private readonly AiSettingsStore _aiSettingsStore;
+    private readonly AvitoApiSettingsStore _avitoApiSettingsStore;
     private readonly WindowsOcrService _ocrService = new();
     private readonly HttpClient _openAiHttpClient = new() { Timeout = TimeSpan.FromSeconds(75) };
+    private readonly HttpClient _avitoApiHttpClient = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly OpenAiConversationService _openAiService;
+    private readonly AvitoRatingsService _avitoRatingsService;
     private readonly CancellationTokenSource _windowClosedCancellation = new();
     private AiSettings? _aiSettings;
+    private AvitoApiSettings? _avitoApiSettings;
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _reminderTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly HashSet<Guid> _announcedDueReminders = [];
@@ -41,7 +45,11 @@ public partial class MainWindow : Window
         _aiSettingsStore = new AiSettingsStore(
             Path.Combine(dataFolder, "ai-settings.dat"),
             new WindowsWorkspaceProtector());
+        _avitoApiSettingsStore = new AvitoApiSettingsStore(
+            Path.Combine(dataFolder, "avito-api-settings.dat"),
+            new WindowsWorkspaceProtector());
         _openAiService = new OpenAiConversationService(_openAiHttpClient);
+        _avitoRatingsService = new AvitoRatingsService(_avitoApiHttpClient);
         _reviewDetectionTimer.Tick += ReviewDetectionTimer_Tick;
         _reminderTimer.Tick += ReminderTimer_Tick;
     }
@@ -61,6 +69,7 @@ public partial class MainWindow : Window
     {
         var loadMessage = LoadWorkspace();
         LoadAiSettings();
+        LoadAvitoApiSettings();
         AppointmentDatePicker.SelectedDate = DateTime.Today.AddDays(1);
         AppointmentTimeTextBox.Text = "10:00";
         RefreshLists();
@@ -80,6 +89,7 @@ public partial class MainWindow : Window
         _reminderTimer.Stop();
         _windowClosedCancellation.Cancel();
         _openAiHttpClient.Dispose();
+        _avitoApiHttpClient.Dispose();
         _windowClosedCancellation.Dispose();
         ConversationTextBox.Clear();
         AiConversationPreviewTextBox.Clear();
@@ -380,6 +390,74 @@ public partial class MainWindow : Window
         Announce($"Клиент «{client.Name}» и его записи удалены.");
     }
 
+    private async void ImportReviewsFromAvitoApi_Click(object sender, RoutedEventArgs e)
+    {
+        if (_reviewImportInProgress)
+        {
+            return;
+        }
+
+        if (_avitoApiSettings is null)
+        {
+            Announce("Сначала сохраните Client ID и Client Secret Avito в настройках.");
+            OpenAvitoApiSettings_Click(sender, e);
+            return;
+        }
+
+        try
+        {
+            _reviewImportInProgress = true;
+            ImportReviewsFromAvitoApiButton.IsEnabled = false;
+            ImportVisibleReviewsButton.IsEnabled = false;
+            ResetImportedReviews();
+            AvitoApiReviewStatusText.Text = "Получаем рейтинг и отзывы через официальный API Avito.";
+            Announce(AvitoApiReviewStatusText.Text);
+
+            var result = await _avitoRatingsService.GetReviewsAsync(
+                _avitoApiSettings,
+                _windowClosedCancellation.Token);
+            if (result.Reviews.Count == 0)
+            {
+                ReviewImportSummaryText.Text = "Avito не вернул активных опубликованных отзывов.";
+                AvitoApiReviewStatusText.Text = ReviewImportSummaryText.Text;
+                Announce(ReviewImportSummaryText.Text);
+                return;
+            }
+
+            var summary = result.AverageRating.HasValue
+                ? $"Получено через официальный API: {result.Reviews.Count} из {result.TotalAvailable}. Средняя оценка: {result.AverageRating:0.0} из 5."
+                : $"Получено через официальный API: {result.Reviews.Count} из {result.TotalAvailable}. Общая оценка не указана.";
+            ApplyImportedReviews(result.Reviews, result.AverageRating, summary);
+            AvitoApiReviewStatusText.Text = "Отзывы получены через официальный API Avito.";
+        }
+        catch (AvitoApiException error)
+        {
+            AvitoApiReviewStatusText.Text = error.Message;
+            Announce(error.Message);
+        }
+        catch (OperationCanceledException) when (_windowClosedCancellation.IsCancellationRequested)
+        {
+            // Окно закрывается, поэтому результат больше не нужен.
+        }
+        catch (Exception)
+        {
+            AvitoApiReviewStatusText.Text = "Не удалось обработать ответ Avito. Попробуйте позже.";
+            Announce(AvitoApiReviewStatusText.Text);
+        }
+        finally
+        {
+            _reviewImportInProgress = false;
+            ImportReviewsFromAvitoApiButton.IsEnabled = _avitoApiSettings is not null;
+            ImportVisibleReviewsButton.IsEnabled = _reviewBrowserReady;
+        }
+    }
+
+    private void OpenAvitoApiSettings_Click(object sender, RoutedEventArgs e)
+    {
+        SelectNavigationItem("Settings");
+        AvitoClientIdTextBox.Focus();
+    }
+
     private async void OpenAvito_Click(object sender, RoutedEventArgs e)
     {
         if (!AvitoLink.TryCreate(AvitoUrlTextBox.Text, out var link, out var error))
@@ -455,16 +533,10 @@ public partial class MainWindow : Window
             {
                 average = overallRating;
             }
-            _importedReviews = reviews;
-            _importedAverageRating = average;
-            ReviewImportSummaryText.Text = average.HasValue
+            var summary = average.HasValue
                 ? $"Импортировано отзывов: {reviews.Count}. Средняя оценка: {average:0.0} из 5."
                 : $"Импортировано отзывов: {reviews.Count}. Оценки в открытом тексте не найдены.";
-            AnalyzeReviewsButton.IsEnabled = true;
-            ShowReviewAnalysis(focusResults: false);
-            ImportedReviewsList.SelectedIndex = 0;
-            ImportedReviewsList.Focus();
-            Announce(ReviewImportSummaryText.Text);
+            ApplyImportedReviews(reviews, average, summary);
         }
         catch (Exception)
         {
@@ -474,6 +546,7 @@ public partial class MainWindow : Window
         {
             _reviewImportInProgress = false;
             ImportVisibleReviewsButton.IsEnabled = _reviewBrowserReady;
+            ImportReviewsFromAvitoApiButton.IsEnabled = _avitoApiSettings is not null;
         }
     }
 
@@ -768,6 +841,59 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SaveAvitoApiSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = AvitoApiSettings.Create(
+                AvitoClientIdTextBox.Text,
+                AvitoClientSecretPasswordBox.Password);
+            _avitoApiSettingsStore.Save(settings);
+            _avitoApiSettings = settings;
+            AvitoClientIdTextBox.Clear();
+            AvitoClientSecretPasswordBox.Clear();
+            AvitoApiSettingsStatusText.Text = "Данные API Avito сохранены и защищены для текущей учётной записи Windows.";
+            AvitoApiReviewStatusText.Text = "Официальный API Avito готов к работе.";
+            ImportReviewsFromAvitoApiButton.IsEnabled = true;
+            Announce(AvitoApiSettingsStatusText.Text);
+        }
+        catch (ArgumentException error)
+        {
+            Announce(error.Message.Split(" (Parameter", StringSplitOptions.None)[0]);
+            if (string.IsNullOrWhiteSpace(AvitoClientIdTextBox.Text))
+            {
+                AvitoClientIdTextBox.Focus();
+            }
+            else
+            {
+                AvitoClientSecretPasswordBox.Focus();
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or CryptographicException)
+        {
+            Announce("Не удалось защищённо сохранить данные Avito. Проверьте доступное место и права на папку.");
+        }
+    }
+
+    private void DeleteAvitoApiSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _avitoApiSettingsStore.Delete();
+            _avitoApiSettings = null;
+            AvitoClientIdTextBox.Clear();
+            AvitoClientSecretPasswordBox.Clear();
+            ImportReviewsFromAvitoApiButton.IsEnabled = false;
+            AvitoApiSettingsStatusText.Text = "Данные API Avito не сохранены.";
+            AvitoApiReviewStatusText.Text = "Данные API Avito не сохранены. Используйте запасной импорт из открытой страницы или сохраните данные в настройках.";
+            Announce(AvitoApiSettingsStatusText.Text);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Announce("Не удалось удалить данные Avito. Закройте другие копии МастерFlow и попробуйте снова.");
+        }
+    }
+
     private void SaveOpenAiKey_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -852,6 +978,22 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Loaded);
     }
 
+    private void ApplyImportedReviews(
+        IReadOnlyList<ReviewRecord> reviews,
+        double? averageRating,
+        string summary)
+    {
+        _importedReviews = reviews;
+        _importedAverageRating = averageRating;
+        ImportedReviewsList.ItemsSource = reviews;
+        ReviewImportSummaryText.Text = summary;
+        AnalyzeReviewsButton.IsEnabled = true;
+        ShowReviewAnalysis(focusResults: false);
+        ImportedReviewsList.SelectedIndex = 0;
+        ImportedReviewsList.Focus();
+        Announce(summary);
+    }
+
     private void ResetImportedReviews()
     {
         _importedReviews = [];
@@ -908,6 +1050,29 @@ public partial class MainWindow : Window
         {
             _aiSettings = null;
             AiSettingsStatusText.Text = "Не удалось прочитать сохранённый ключ. Удалите его и сохраните новый.";
+        }
+    }
+
+    private void LoadAvitoApiSettings()
+    {
+        try
+        {
+            _avitoApiSettings = _avitoApiSettingsStore.Load();
+            var isSaved = _avitoApiSettings is not null;
+            AvitoApiSettingsStatusText.Text = isSaved
+                ? "Данные API Avito сохранены и защищены для текущей учётной записи Windows."
+                : "Данные API Avito не сохранены.";
+            AvitoApiReviewStatusText.Text = isSaved
+                ? "Официальный API Avito готов к работе."
+                : "Данные API Avito не сохранены. Используйте запасной импорт из открытой страницы или сохраните данные в настройках.";
+            ImportReviewsFromAvitoApiButton.IsEnabled = isSaved;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException)
+        {
+            _avitoApiSettings = null;
+            ImportReviewsFromAvitoApiButton.IsEnabled = false;
+            AvitoApiSettingsStatusText.Text = "Не удалось прочитать сохранённые данные Avito. Удалите их и сохраните новые.";
+            AvitoApiReviewStatusText.Text = "Официальный API Avito временно недоступен из-за ошибки настроек.";
         }
     }
 
