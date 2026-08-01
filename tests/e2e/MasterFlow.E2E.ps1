@@ -34,7 +34,12 @@ function Find-AutomationId($root, $automationId) {
     $condition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
         $automationId)
-    return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    $element = $null
+    for ($attempt = 0; $attempt -lt 20 -and $null -eq $element; $attempt++) {
+        $element = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+        if ($null -eq $element) { Start-Sleep -Milliseconds 200 }
+    }
+    return $element
 }
 
 function Start-MasterFlow {
