@@ -7,6 +7,29 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type @"
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+public static class MasterFlowDpiProbe
+{
+    [DllImport("shcore.dll")]
+    private static extern int GetProcessDpiAwareness(IntPtr processHandle, out int awareness);
+
+    public static int Read(int processId)
+    {
+        using Process process = Process.GetProcessById(processId);
+        int result = GetProcessDpiAwareness(process.Handle, out int awareness);
+        if (result != 0)
+        {
+            throw new InvalidOperationException($"GetProcessDpiAwareness failed: {result}");
+        }
+
+        return awareness;
+    }
+}
+"@
 
 $resolvedAppPath = (Resolve-Path -LiteralPath $AppPath).Path
 $testData = Join-Path ([System.IO.Path]::GetTempPath()) ("MasterFlow.E2E." + [Guid]::NewGuid().ToString("N"))
@@ -83,9 +106,12 @@ $first = Start-MasterFlow
 $process = $first[0]
 $window = $first[1]
 try {
+    if ([MasterFlowDpiProbe]::Read($process.Id) -ne 2) {
+        throw "МастерFlow не использует DPI-режим Per Monitor."
+    }
     $transform = $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
     if ($transform.Current.CanResize) {
-        $transform.Resize(820, 560)
+        $transform.Resize(720, 480)
         Start-Sleep -Milliseconds 250
     }
     foreach ($name in @("Сегодня", "Клиенты", "Расписание", "Отзывы Avito", "Анализ переписки", "Настройки")) {
@@ -202,4 +228,4 @@ finally {
     }
 }
 
-Write-Output "MasterFlow E2E passed: keyboard navigation, persistence, encryption, local analysis, cleanup and protected AI settings."
+Write-Output "MasterFlow E2E passed: Per-Monitor DPI, compact layout, keyboard navigation, persistence, encryption, local analysis, cleanup and protected AI settings."
