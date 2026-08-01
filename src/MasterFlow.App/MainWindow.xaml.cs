@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using MasterFlow.Core;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 
 namespace MasterFlow.App;
 
@@ -14,6 +15,7 @@ public partial class MainWindow : Window
 {
     private MasterWorkspace _workspace = new();
     private readonly FileWorkspaceStore _workspaceStore;
+    private readonly WindowsOcrService _ocrService = new();
     private readonly DispatcherTimer _reviewDetectionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _reminderTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly HashSet<Guid> _announcedDueReminders = [];
@@ -65,6 +67,7 @@ public partial class MainWindow : Window
     {
         _reviewDetectionTimer.Stop();
         _reminderTimer.Stop();
+        ConversationTextBox.Clear();
     }
 
     private void NavigationTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -527,6 +530,132 @@ public partial class MainWindow : Window
 
         ShowReviewAnalysis(focusResults: true);
         Announce("Анализ отзывов готов. Показаны сильные стороны, темы для внимания и рекомендации.");
+    }
+
+    private void OpenConversationTextFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите текстовый файл с перепиской",
+            Filter = "Текстовые файлы (*.txt)|*.txt",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            Announce("Выбор файла отменён.");
+            return;
+        }
+
+        try
+        {
+            var file = new FileInfo(dialog.FileName);
+            if (file.Length > 2 * 1024 * 1024)
+            {
+                Announce("Файл больше двух мегабайт. Выберите более короткую переписку.");
+                return;
+            }
+
+            ConversationTextBox.Text = File.ReadAllText(file.FullName);
+            ConversationAnalysisPanel.Visibility = Visibility.Collapsed;
+            ConversationTextBox.Focus();
+            Announce($"Текстовый файл открыт. Знаков: {ConversationTextBox.Text.Length}. Проверьте текст и отметьте согласие на локальный анализ.");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Announce("Не удалось открыть файл. Проверьте доступ к нему и попробуйте снова.");
+        }
+    }
+
+    private async void RecognizeConversationScreenshots_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Выберите скриншоты переписки",
+            Filter = "Изображения (*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff",
+            CheckFileExists = true,
+            Multiselect = true
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            Announce("Выбор скриншотов отменён.");
+            return;
+        }
+
+        if (dialog.FileNames.Length > 10)
+        {
+            Announce("Выберите не больше десяти скриншотов за один раз.");
+            return;
+        }
+
+        if (dialog.FileNames.Any(path => new FileInfo(path).Length > 15 * 1024 * 1024))
+        {
+            Announce("Один из скриншотов больше 15 мегабайт. Уменьшите изображение и попробуйте снова.");
+            return;
+        }
+
+        try
+        {
+            ScreenshotImportStatusText.Text = $"Распознаём скриншоты: {dialog.FileNames.Length}.";
+            Announce(ScreenshotImportStatusText.Text);
+            var recognized = await _ocrService.RecognizeAsync(dialog.FileNames);
+            ConversationTextBox.Text = string.IsNullOrWhiteSpace(ConversationTextBox.Text)
+                ? recognized
+                : ConversationTextBox.Text.TrimEnd() + Environment.NewLine + Environment.NewLine + recognized;
+            ConversationAnalysisPanel.Visibility = Visibility.Collapsed;
+            ScreenshotImportStatusText.Text = $"Текст распознан. Скриншотов: {dialog.FileNames.Length}. Проверьте порядок и ошибки распознавания перед анализом.";
+            ConversationTextBox.Focus();
+            Announce(ScreenshotImportStatusText.Text);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            ScreenshotImportStatusText.Text = error is InvalidOperationException or ArgumentException
+                ? error.Message.Split(" (Parameter", StringSplitOptions.None)[0]
+                : "Не удалось прочитать скриншоты. Проверьте доступ к файлам и попробуйте снова.";
+            Announce(ScreenshotImportStatusText.Text);
+        }
+    }
+
+    private void AnalyzeConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConversationConsentCheckBox.IsChecked != true)
+        {
+            Announce("Сначала проверьте текст и отметьте согласие на локальный анализ.");
+            ConversationConsentCheckBox.Focus();
+            return;
+        }
+
+        try
+        {
+            var analysis = ConversationAnalyzer.Analyze(ConversationTextBox.Text);
+            ConversationAnalysisSummaryText.Text = analysis.Summary;
+            ConversationPrivacyText.Text = analysis.PrivacyNotice;
+            CommunicationRecommendationsList.ItemsSource = analysis.CommunicationRecommendations;
+            AdvertisementRecommendationsList.ItemsSource = analysis.AdvertisementRecommendations;
+            ConversationAnalysisPanel.Visibility = Visibility.Visible;
+            CommunicationRecommendationsList.SelectedIndex = 0;
+            FocusFirstAnalysisItem(CommunicationRecommendationsList);
+            Announce("Анализ переписки готов. Показаны рекомендации по ответам и объявлению.");
+        }
+        catch (ArgumentException error)
+        {
+            Announce(error.Message.Split(" (Parameter", StringSplitOptions.None)[0]);
+            ConversationTextBox.Focus();
+        }
+    }
+
+    private void ClearConversation_Click(object sender, RoutedEventArgs e)
+    {
+        ConversationTextBox.Clear();
+        ConversationConsentCheckBox.IsChecked = false;
+        ConversationAnalysisSummaryText.Text = string.Empty;
+        ConversationPrivacyText.Text = string.Empty;
+        CommunicationRecommendationsList.ItemsSource = null;
+        AdvertisementRecommendationsList.ItemsSource = null;
+        ConversationAnalysisPanel.Visibility = Visibility.Collapsed;
+        ScreenshotImportStatusText.Text = "Скриншоты ещё не выбраны.";
+        ConversationTextBox.Focus();
+        Announce("Текст переписки и результаты анализа удалены из программы.");
     }
 
     private void ShowReviewAnalysis(bool focusResults)
