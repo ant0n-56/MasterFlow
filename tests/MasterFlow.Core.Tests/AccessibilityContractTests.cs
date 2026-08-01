@@ -24,7 +24,8 @@ public sealed class AccessibilityContractTests
         var fields = document.Descendants()
             .Where(element => element.Name == Presentation + "TextBox" ||
                               element.Name == Presentation + "DatePicker" ||
-                              element.Name == Presentation + "ComboBox")
+                              element.Name == Presentation + "ComboBox" ||
+                              element.Name == Presentation + "PasswordBox")
             .ToList();
 
         Assert.NotEmpty(fields);
@@ -229,6 +230,34 @@ public sealed class AccessibilityContractTests
         Assert.Contains("Windows.Media.Ocr", source);
         Assert.Contains("RecognizeAsync", source);
         Assert.DoesNotContain("HttpClient", source);
+    }
+
+    [Fact]
+    public void MainWindow_OptionalAiRequiresPreviewConsentAndProtectedKeySettings()
+    {
+        var document = LoadMainWindow();
+        string[] namedControls =
+        [
+            "Текст для отправки в OpenAI",
+            "Согласие на отправку подготовленной переписки в OpenAI",
+            "Отправить подготовленный текст в OpenAI и получить рекомендации",
+            "Рекомендации ИИ по переписке",
+            "Ключ OpenAI API",
+            "Сохранить ключ OpenAI API защищённо",
+            "Удалить сохранённый ключ OpenAI API"
+        ];
+
+        Assert.All(namedControls, name => Assert.Contains(
+            document.Descendants(),
+            element => element.Attribute("AutomationProperties.Name")?.Value == name));
+        Assert.Contains(
+            document.Descendants(Presentation + "TreeViewItem"),
+            item => item.Attribute("Tag")?.Value == "Settings" && item.Attribute("Header")?.Value == "Настройки");
+
+        var source = LoadMainWindowSource();
+        Assert.Contains("ConversationCloudSanitizer.Prepare", source);
+        Assert.Contains("AiConversationConsentCheckBox.IsChecked", source);
+        Assert.Contains("WindowsWorkspaceProtector", source);
     }
 
     [Fact]
