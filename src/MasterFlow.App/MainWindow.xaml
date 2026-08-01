@@ -136,12 +136,20 @@
                     <StackPanel x:Name="ClientsPanel" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource SectionTitle}" Text="Клиенты" />
                         <TextBlock Style="{StaticResource SectionDescription}"
-                                   Text="В списке хранятся клиенты, для которых уже создавались записи." />
+                                   Text="Клиенты и записи сохраняются на этом компьютере. Выберите клиента, чтобы открыть карточку и историю посещений." />
+
+                        <Label Target="{Binding ElementName=ClientSearchTextBox}" Content="Поиск клиента" />
+                        <TextBox x:Name="ClientSearchTextBox"
+                                 AutomationProperties.Name="Поиск клиента"
+                                 AutomationProperties.HelpText="Введите имя, контакт или слово из заметки."
+                                 TextChanged="ClientSearchTextBox_TextChanged" />
                         <Label Target="{Binding ElementName=ClientsList}" Content="Список клиентов" FontWeight="SemiBold" />
                         <ListBox x:Name="ClientsList"
                                  MinHeight="220"
+                                 MaxHeight="320"
                                  DisplayMemberPath="Name"
-                                 AutomationProperties.Name="Список клиентов">
+                                 AutomationProperties.Name="Список клиентов"
+                                 SelectionChanged="ClientsList_SelectionChanged">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
@@ -152,6 +160,66 @@
                                    Margin="0,12,0,0"
                                    Text="Клиентов пока нет. Клиент появится здесь после создания первой записи."
                                    TextWrapping="Wrap" />
+
+                        <GroupBox x:Name="ClientCardGroupBox"
+                                  Header="Карточка клиента"
+                                  Margin="0,20,0,0"
+                                  Padding="12"
+                                  Visibility="Collapsed">
+                            <StackPanel>
+                                <Label Target="{Binding ElementName=ClientCardNameTextBox}" Content="Имя клиента" />
+                                <TextBox x:Name="ClientCardNameTextBox"
+                                         AutomationProperties.Name="Имя клиента в карточке" />
+
+                                <Label Target="{Binding ElementName=ClientCardContactTextBox}" Content="Контакт" />
+                                <TextBox x:Name="ClientCardContactTextBox"
+                                         AutomationProperties.Name="Контакт клиента в карточке" />
+
+                                <Label Target="{Binding ElementName=ClientCardSourceTextBox}" Content="Источник клиента" />
+                                <TextBox x:Name="ClientCardSourceTextBox"
+                                         AutomationProperties.Name="Источник клиента"
+                                         AutomationProperties.HelpText="Например, Avito или рекомендация." />
+
+                                <Label Target="{Binding ElementName=ClientCardNotesTextBox}" Content="Заметка" />
+                                <TextBox x:Name="ClientCardNotesTextBox"
+                                         MinHeight="80"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         AutomationProperties.Name="Заметка о клиенте в карточке" />
+
+                                <WrapPanel Margin="0,0,0,16">
+                                    <Button Content="Сохранить изменения"
+                                            AutomationProperties.Name="Сохранить изменения карточки клиента"
+                                            Click="SaveClientChanges_Click" />
+                                    <Button Content="Создать следующую запись"
+                                            AutomationProperties.Name="Создать следующую запись для выбранного клиента"
+                                            Click="CreateAppointmentForSelectedClient_Click" />
+                                    <Button Content="Удалить клиента"
+                                            AutomationProperties.Name="Удалить выбранного клиента и его записи"
+                                            AutomationProperties.HelpText="Перед удалением программа попросит подтверждение."
+                                            Click="DeleteSelectedClient_Click" />
+                                </WrapPanel>
+
+                                <Label Target="{Binding ElementName=ClientHistoryList}"
+                                       Content="История и будущие записи"
+                                       FontWeight="SemiBold" />
+                                <ListBox x:Name="ClientHistoryList"
+                                         MinHeight="120"
+                                         MaxHeight="280"
+                                         DisplayMemberPath="AccessibleSummary"
+                                         AutomationProperties.Name="История и будущие записи выбранного клиента">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleSummary}" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                                <TextBlock x:Name="EmptyClientHistoryText"
+                                           Margin="0,8,0,0"
+                                           Text="У клиента пока нет записей."
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </GroupBox>
                     </StackPanel>
 
                     <StackPanel x:Name="SchedulePanel" Visibility="Collapsed" MaxWidth="720" HorizontalAlignment="Left">

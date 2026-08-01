@@ -131,6 +131,70 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_ClientCardHasAccessibleSearchEditHistoryAndDestructiveConfirmation()
+    {
+        var document = LoadMainWindow();
+        string[] requiredFields =
+        [
+            "ClientSearchTextBox",
+            "ClientCardNameTextBox",
+            "ClientCardContactTextBox",
+            "ClientCardSourceTextBox",
+            "ClientCardNotesTextBox"
+        ];
+        string[] requiredButtons =
+        [
+            "Сохранить изменения карточки клиента",
+            "Создать следующую запись для выбранного клиента",
+            "Удалить выбранного клиента и его записи"
+        ];
+
+        Assert.All(requiredFields, name =>
+        {
+            var field = document.Descendants(Presentation + "TextBox")
+                .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == name);
+            Assert.False(string.IsNullOrWhiteSpace(field.Attribute("AutomationProperties.Name")?.Value));
+        });
+        Assert.All(requiredButtons, name => Assert.Contains(
+            document.Descendants(Presentation + "Button"),
+            button => button.Attribute("AutomationProperties.Name")?.Value == name));
+
+        var history = document.Descendants(Presentation + "ListBox")
+            .Single(element => element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "ClientHistoryList");
+        Assert.Equal("История и будущие записи выбранного клиента", history.Attribute("AutomationProperties.Name")?.Value);
+
+        var source = LoadMainWindowSource();
+        Assert.Contains("new ConfirmDeleteDialog", source);
+        var dialogPath = Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "ConfirmDeleteDialog.xaml");
+        var dialog = XDocument.Load(dialogPath);
+        var dialogButtons = dialog.Descendants(Presentation + "Button").ToArray();
+        Assert.Equal(2, dialogButtons.Length);
+        Assert.All(dialogButtons, button =>
+            Assert.False(string.IsNullOrWhiteSpace(button.Attribute("AutomationProperties.Name")?.Value)));
+        var cancel = dialogButtons.Single(button => button.Attribute("IsCancel")?.Value == "True");
+        Assert.Equal("True", cancel.Attribute("IsDefault")?.Value);
+    }
+
+    [Fact]
+    public void MainWindow_ProtectsWorkspaceForCurrentWindowsUser()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindProjectRoot().FullName,
+            "src",
+            "MasterFlow.App",
+            "WindowsWorkspaceProtector.cs"));
+        var windowSource = LoadMainWindowSource();
+
+        Assert.Contains("DataProtectionScope.CurrentUser", source);
+        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", windowSource);
+        Assert.Contains("MASTERFLOW_DATA_FOLDER", windowSource);
+    }
+
+    [Fact]
     public void MainWindow_AutomaticallyImportsWhenReviewDialogAppears()
     {
         var source = File.ReadAllText(Path.Combine(
@@ -169,6 +233,12 @@ public sealed class AccessibilityContractTests
         var path = Path.Combine(directory.FullName, "src", "MasterFlow.App", "MainWindow.xaml");
         return XDocument.Load(path);
     }
+
+    private static string LoadMainWindowSource() => File.ReadAllText(Path.Combine(
+        FindProjectRoot().FullName,
+        "src",
+        "MasterFlow.App",
+        "MainWindow.xaml.cs"));
 
     private static DirectoryInfo FindProjectRoot()
     {
