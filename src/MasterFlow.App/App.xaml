@@ -1,0 +1,11 @@
+﻿<Application x:Class="MasterFlow.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:MasterFlow.App"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <Style TargetType="ToolTip">
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+    </Application.Resources>
+</Application>

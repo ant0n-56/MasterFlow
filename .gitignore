@@ -1,5 +1,7 @@
 # Dependencies and build output
 node_modules/
+bin/
+obj/
 dist/
 build/
 .next/
@@ -16,4 +18,3 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
-
