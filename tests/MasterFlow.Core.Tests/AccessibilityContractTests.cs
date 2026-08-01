@@ -54,6 +54,42 @@ public sealed class AccessibilityContractTests
     }
 
     [Fact]
+    public void MainWindow_SupportsMinimumSizeAndSystemHighContrastColors()
+    {
+        var document = LoadMainWindow();
+        var window = document.Root!;
+        var mainScroll = document.Descendants(Presentation + "ScrollViewer").First();
+
+        Assert.Equal("820", window.Attribute("MinWidth")?.Value);
+        Assert.Equal("560", window.Attribute("MinHeight")?.Value);
+        Assert.Contains("SystemColors.WindowBrushKey", window.Attribute("Background")?.Value);
+        Assert.Contains("SystemColors.WindowTextBrushKey", window.Attribute("Foreground")?.Value);
+        Assert.Equal("Auto", mainScroll.Attribute("VerticalScrollBarVisibility")?.Value);
+        Assert.Equal("Disabled", mainScroll.Attribute("HorizontalScrollBarVisibility")?.Value);
+
+        var literalColorAttributes = window.DescendantsAndSelf()
+            .Attributes()
+            .Where(attribute => attribute.Name.LocalName is "Foreground" or "Background" or "BorderBrush")
+            .Where(attribute => attribute.Value.StartsWith('#'));
+        Assert.Empty(literalColorAttributes);
+    }
+
+    [Fact]
+    public void MainWindow_InteractiveControlsHaveLargeDefaultTargets()
+    {
+        var document = LoadMainWindow();
+        var buttonStyle = document.Descendants(Presentation + "Style")
+            .Single(style => style.Attribute("TargetType")?.Value == "Button");
+        var textBoxStyle = document.Descendants(Presentation + "Style")
+            .Single(style => style.Attribute("TargetType")?.Value == "TextBox");
+
+        Assert.Contains(buttonStyle.Descendants(Presentation + "Setter"),
+            setter => setter.Attribute("Property")?.Value == "MinHeight" && setter.Attribute("Value")?.Value == "44");
+        Assert.Contains(textBoxStyle.Descendants(Presentation + "Setter"),
+            setter => setter.Attribute("Property")?.Value == "MinHeight" && setter.Attribute("Value")?.Value == "40");
+    }
+
+    [Fact]
     public void MainWindow_DoesNotSelectNavigationBeforeWindowIsLoaded()
     {
         var items = LoadMainWindow().Descendants(Presentation + "TreeViewItem");
