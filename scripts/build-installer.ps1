@@ -10,6 +10,12 @@ $originalTempPath = $env:TEMP
 $originalTmpPath = $env:TMP
 $originalNugetPackagesPath = $env:NUGET_PACKAGES
 $originalNugetHttpCachePath = $env:NUGET_HTTP_CACHE_PATH
+$dotnetExecutable = if ([string]::IsNullOrWhiteSpace($env:MASTERFLOW_DOTNET)) {
+    "dotnet"
+}
+else {
+    $env:MASTERFLOW_DOTNET
+}
 
 New-Item -ItemType Directory -Force -Path $buildTempDirectory, $buildPackagesDirectory, $buildHttpCacheDirectory | Out-Null
 $env:TEMP = $buildTempDirectory
@@ -22,15 +28,16 @@ try {
     & (Join-Path $projectRoot "scripts\test-all.ps1")
     if ($LASTEXITCODE -ne 0) { throw "Полная проверка МастерFlow завершилась ошибкой." }
 
-    dotnet publish "src\MasterFlow.App\MasterFlow.App.csproj" `
+    & $dotnetExecutable publish "src\MasterFlow.App\MasterFlow.App.csproj" `
         -c Release `
         -r win-x64 `
         --self-contained true `
+        -p:UseSharedCompilation=false `
         -p:PublishSingleFile=false `
         -o $publishDirectory
     if ($LASTEXITCODE -ne 0) { throw "Публикация self-contained сборки завершилась ошибкой." }
 
-    dotnet build $installerProject -c Release -p:PublishDir=$publishDirectory
+    & $dotnetExecutable build $installerProject -c Release -p:PublishDir=$publishDirectory
     if ($LASTEXITCODE -ne 0) { throw "Сборка MSI завершилась ошибкой." }
 
     & (Join-Path $projectRoot "scripts\validate-installer.ps1")
