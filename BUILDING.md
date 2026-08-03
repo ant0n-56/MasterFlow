@@ -30,6 +30,14 @@ $env:MASTERFLOW_DOTNET = "D:\путь\к\dotnet.exe"
 
 Сценарий сначала выполняет полную проверку, затем создаёт self-contained сборку `win-x64` и MSI в `artifacts/installer`. Каталог `artifacts` не добавляется в Git.
 
+## Portable ZIP без установщика
+
+```powershell
+./scripts/build-portable.ps1
+```
+
+Сценарий выполняет полную проверку, создаёт self-contained `MasterFlow.exe` и упаковывает его с README, руководством и политикой конфиденциальности в `artifacts/portable/MasterFlow-0.1.1-win-x64-portable.zip`. Устанавливать .NET отдельно не требуется.
+
 ## Цифровая подпись MSI
 
 Для подписи нужен действующий сертификат подписи кода с закрытым ключом в хранилище сертификатов Windows. Самоподписанный сертификат для публичного выпуска не используется.
