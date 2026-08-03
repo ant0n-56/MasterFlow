@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if ([string]::IsNullOrWhiteSpace($MsiPath)) {
-    $MsiPath = Join-Path $projectRoot "artifacts\installer\MasterFlow-0.1.0-win-x64.msi"
+    $MsiPath = Join-Path $projectRoot "artifacts\installer\MasterFlow-0.1.1-win-x64.msi"
 }
 $resolvedMsiPath = (Resolve-Path -LiteralPath $MsiPath).Path
 $validationDirectory = Join-Path $projectRoot "artifacts\validation\administrative-image"

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -463,6 +464,31 @@ public partial class MainWindow : Window
     {
         SelectNavigationItem("Settings");
         AvitoClientIdTextBox.Focus();
+    }
+
+    private void OpenAvitoInSystemBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AvitoLink.TryCreate(AvitoUrlTextBox.Text, out var link, out var error))
+        {
+            Announce(error);
+            AvitoUrlTextBox.Focus();
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = link!.Uri.AbsoluteUri,
+                UseShellExecute = true
+            });
+            Announce("Ссылка Avito открыта в браузере Windows.");
+        }
+        catch (Exception)
+        {
+            Announce("Не удалось открыть браузер. Скопируйте ссылку и откройте её вручную.");
+            AvitoUrlTextBox.Focus();
+        }
     }
 
     private async void OpenAvito_Click(object sender, RoutedEventArgs e)
@@ -1314,7 +1340,7 @@ public partial class MainWindow : Window
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MasterFlow",
                 "BrowserData");
-            var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: browserDataFolder);
+            var environment = await CreateReviewBrowserEnvironmentAsync(browserDataFolder);
             await AvitoBrowser.EnsureCoreWebView2Async(environment);
 
             AvitoBrowser.CoreWebView2.Profile.IsPasswordAutosaveEnabled = false;
@@ -1339,6 +1365,39 @@ public partial class MainWindow : Window
         {
             Announce("Не удалось подготовить браузер Avito. Перезапустите программу.");
         }
+    }
+
+    private static async Task<CoreWebView2Environment> CreateReviewBrowserEnvironmentAsync(string browserDataFolder)
+    {
+        try
+        {
+            return await CoreWebView2Environment.CreateAsync(userDataFolder: browserDataFolder);
+        }
+        catch (WebView2RuntimeNotFoundException) when (FindUsableWebView2RuntimeFolder() is { } runtimeFolder)
+        {
+            return await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: runtimeFolder,
+                userDataFolder: browserDataFolder);
+        }
+    }
+
+    private static string? FindUsableWebView2RuntimeFolder()
+    {
+        var applicationFolders = new[]
+        {
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                "Microsoft",
+                "EdgeWebView",
+                "Application"),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft",
+                "EdgeWebView",
+                "Application")
+        };
+
+        return WebView2RuntimeLocator.FindLatestUsableVersion(applicationFolders);
     }
 
     private async Task<bool> EnsureReviewBrowserIsReadyAsync()

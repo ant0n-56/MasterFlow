@@ -3,7 +3,7 @@
   <Package Id="AntonChigarev.MasterFlow"
            Name="МастерFlow"
            Manufacturer="Chigarev Anton"
-           Version="0.1.0"
+           Version="0.1.1"
            Language="1049"
            UpgradeCode="B874BB15-A249-4D82-A77B-173EDDC7EA57"
            Scope="perMachine">

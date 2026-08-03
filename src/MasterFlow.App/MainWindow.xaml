@@ -372,9 +372,9 @@
                                    AutomationProperties.LiveSetting="Polite" />
 
                         <Separator Margin="0,4,0,16" />
-                        <TextBlock FontWeight="SemiBold" Text="Запасной импорт из открытой страницы" />
+                        <TextBlock FontWeight="SemiBold" Text="Открытие Avito и запасной импорт" />
                         <TextBlock Margin="0,4,0,12"
-                                   Text="Если официальный API недоступен для вашего тарифа, откройте Avito в браузерной сессии программы. Вход и проверку выполняйте самостоятельно. Когда откроется окно отзывов, импорт начнётся автоматически."
+                                   Text="Для обычного просмотра откройте ссылку в браузере Windows. Если нужен импорт отзывов без API, откройте её во встроенном браузере программы, самостоятельно выполните вход или проверку и откройте окно отзывов."
                                    TextWrapping="Wrap" />
 
                         <Label Target="{Binding ElementName=AvitoUrlTextBox}" Content="Ссылка на объявление или профиль Avito" />
@@ -383,8 +383,12 @@
                                  AutomationProperties.HelpText="Вставьте полную ссылку, которая начинается с https:// и ведёт на avito.ru." />
 
                         <WrapPanel Margin="0,0,0,8">
-                            <Button Content="Открыть Avito"
-                                    AutomationProperties.Name="Открыть ссылку Avito в браузере программы"
+                            <Button Content="Открыть в браузере"
+                                    AutomationProperties.Name="Открыть ссылку Avito в обычном браузере Windows"
+                                    AutomationProperties.HelpText="Открывает введённую ссылку Avito в браузере по умолчанию."
+                                    Click="OpenAvitoInSystemBrowser_Click" />
+                            <Button Content="Открыть для импорта"
+                                    AutomationProperties.Name="Открыть ссылку Avito во встроенном браузере для импорта отзывов"
                                     Click="OpenAvito_Click" />
                             <Button x:Name="ImportVisibleReviewsButton"
                                     Content="Повторить импорт отзывов"
